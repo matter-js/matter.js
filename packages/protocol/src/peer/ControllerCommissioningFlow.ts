@@ -152,13 +152,16 @@ export type ControllerCommissioningFlowOptions = {
     };
 
     /**
-     * Cancels commissioning until CommissioningComplete is sent or the custom operational step has returned.
+     * Cancels commissioning until the flow starts sending CommissioningComplete or the custom operational step has
+     * returned.
      *
      * A cancel aborts the request in flight and runs no further step.  The flow then tries to expire the fail-safe
      * without this signal, waiting at most 2 seconds for the answer, and rejects with the abort reason.  A command the
-     * cancel interrupts may already have taken effect on the device.  Once CommissioningComplete is sent, its response
-     * decides the outcome and the remaining steps run to the end.  Callbacks the caller supplies, such as the
-     * attestation failure handler or the custom operational step, do not receive the signal.
+     * cancel interrupts may already have taken effect on the device.  Once the flow starts sending
+     * CommissioningComplete, its response decides the outcome and the remaining steps run to the end.  The send waits
+     * for no exchange slot; only a CASE session that is gone by then is established first, and a cancel during that
+     * wait does not apply.  Callbacks the caller supplies, such as the attestation failure handler or the custom
+     * operational step, do not receive the signal.
      *
      * @see {@link MatterSpecification.v161.Core} § 11.10.7.6
      */
@@ -2165,6 +2168,8 @@ export class ControllerCommissioningFlow {
                 {
                     useExtendedFailSafeMessageResponseTimeout: true,
                 },
+                // The cancel no longer applies, so the send must not wait for a throttled exchange slot
+                { network: "unlimited" },
             ),
         );
         this.#currentFailSafeEndTime = undefined; // gets deactivated when successful

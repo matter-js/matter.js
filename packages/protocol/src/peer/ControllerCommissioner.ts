@@ -151,12 +151,12 @@ export interface LocatedNodeCommissioningOptions extends CommissioningOptions {
 
     /**
      * Cancels the commissioning: PASE establishment, the commissioning steps and the operational CASE connection,
-     * until CommissioningComplete is sent (see {@link ControllerCommissioningFlowOptions.abort}).  A cancel after PASE
-     * rejects with the abort reason once the flow has tried to expire the fail-safe and the PASE session is closed.  A
-     * cancel during PASE rejects with the abort reason too, or with the connection error once an address has failed.
-     * A {@link finalizeCommissioning} callback does not receive the signal.  A cancel before it starts stops the
-     * commissioning; once it returned, the commissioning counts as complete; a throw after a cancel rejects with the
-     * abort reason.
+     * until the flow starts sending CommissioningComplete (see {@link ControllerCommissioningFlowOptions.abort}).
+     * A cancel after PASE rejects with the abort reason once the flow has tried to expire the fail-safe and the PASE
+     * session is closed.  A cancel during PASE rejects with the abort reason too, or with the connection error once an
+     * address has failed.  A {@link finalizeCommissioning} callback does not receive the signal.  A cancel before it
+     * starts stops the commissioning; once it returned, the commissioning counts as complete; a throw after a cancel
+     * rejects with the abort reason.
      */
     abort?: AbortSignal;
 

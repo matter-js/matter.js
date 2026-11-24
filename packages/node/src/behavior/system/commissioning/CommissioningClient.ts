@@ -1276,12 +1276,12 @@ export namespace CommissioningClient {
         commissioningFlowImpl?: ClassExtends<ControllerCommissioningFlow>;
 
         /**
-         * Cancels the commissioning until CommissioningComplete is sent: PASE, the commissioning steps and the
-         * operational CASE connection.  A cancel after PASE rejects with the abort reason once the device's fail-safe
-         * expiry was tried; a command the cancel interrupted may already have taken effect on the device.  After
-         * CommissioningComplete was sent the commissioning runs to its end.  A {@link finalizeCommissioning} callback
-         * does not receive the signal: a cancel before it starts stops the commissioning, and once it returned the
-         * commissioning counts as complete.  With `peers.commission()` the signal also cancels the discovery as
+         * Cancels the commissioning until it starts sending CommissioningComplete: PASE, the commissioning steps and
+         * the operational CASE connection.  A cancel after PASE rejects with the abort reason once the device's
+         * fail-safe expiry was tried; a command the cancel interrupted may already have taken effect on the device.
+         * Once CommissioningComplete is being sent the commissioning runs to its end.  A {@link finalizeCommissioning}
+         * callback does not receive the signal: a cancel before it starts stops the commissioning, and once it returned
+         * the commissioning counts as complete.  With `peers.commission()` the signal also cancels the discovery as
          * `Discovery.Options.abort` describes.
          */
         abort?: AbortSignal;
