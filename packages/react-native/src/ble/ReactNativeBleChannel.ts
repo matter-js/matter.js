@@ -99,12 +99,22 @@ export class ReactNativeBleCentralInterface implements Transport {
             releaseReservation();
             return channel;
         } catch (error) {
-            this.#disconnect(peripheral);
+            // The reservation ends only after the native cancel, so a retry cannot overlap it
+            const disconnecting = this.#disconnect(peripheral);
             if (!attempt.aborted) {
-                releaseReservation();
+                disconnecting.then(releaseReservation, releaseReservation);
                 throw error;
             }
-            this.#finishAbandonedAttempt(peripheralAddress, attempt, peripheral, connecting, releaseReservation);
+            this.#finishAbandonedAttempt(
+                peripheralAddress,
+                attempt,
+                peripheral,
+                connecting,
+                disconnecting,
+                releaseReservation,
+            ).catch(cleanupError =>
+                logger.debug(`Error cleaning up the abandoned connection to ${peripheralAddress}:`, cleanupError),
+            );
             throw new AbortedError(`Connection to peripheral ${peripheralAddress} was aborted`, { cause: error });
         }
     }
@@ -115,11 +125,12 @@ export class ReactNativeBleCentralInterface implements Transport {
      * {@link ABANDONED_ATTEMPT_HOLD} at the latest, in case the platform never settles a canceled connection.  A link
      * the attempt acquires after that is left alone, because its device ID may then belong to a newer attempt.
      */
-    #finishAbandonedAttempt(
+    async #finishAbandonedAttempt(
         peripheralAddress: string,
         attempt: Abort,
         peripheral: Device,
         connecting: Promise<Channel<Bytes>>,
+        disconnecting: Promise<void>,
         releaseReservation: () => void,
     ) {
         const hold = Time.getTimer("Abandoned BLE connection attempt", ABANDONED_ATTEMPT_HOLD, () => {
@@ -132,34 +143,37 @@ export class ReactNativeBleCentralInterface implements Transport {
         // The cleanup acts on the device ID, so once the reservation is gone it could end a newer attempt's link
         const stillReserved = () => this.#attempts.get(peripheralAddress) === attempt;
 
-        connecting
-            .then(
-                async channel => {
-                    if (stillReserved()) {
-                        await channel.close();
-                    }
-                },
-                connectError => {
-                    logger.debug(`Abandoned connection to ${peripheralAddress} failed:`, connectError);
-                    if (stillReserved()) {
-                        this.#disconnect(peripheral);
-                    }
-                },
-            )
-            .catch(closeError =>
-                logger.debug(`Error closing the channel to ${peripheralAddress} after the abort:`, closeError),
-            )
-            .finally(() => {
-                hold.stop();
-                releaseReservation();
-            });
+        try {
+            let channel: Channel<Bytes> | undefined;
+            try {
+                channel = await connecting;
+            } catch (connectError) {
+                logger.debug(`Abandoned connection to ${peripheralAddress} failed:`, connectError);
+                if (stillReserved()) {
+                    await this.#disconnect(peripheral);
+                }
+            }
+            if (channel !== undefined && stillReserved()) {
+                try {
+                    await channel.close();
+                } catch (closeError) {
+                    logger.debug(`Error closing the channel to ${peripheralAddress} after the abort:`, closeError);
+                }
+            }
+            await disconnecting;
+        } finally {
+            hold.stop();
+            releaseReservation();
+        }
     }
 
-    /** Ends the link to the peripheral, whether it is connected or still connecting. */
-    #disconnect(peripheral: Device) {
-        peripheral
-            .cancelConnection()
-            .catch(error => logger.debug(`Error cancelling the connection to ${peripheral.id}:`, error));
+    /** Ends the link to the peripheral, whether it is connected or still connecting.  The promise never rejects. */
+    async #disconnect(peripheral: Device) {
+        try {
+            await peripheral.cancelConnection();
+        } catch (error) {
+            logger.debug(`Error cancelling the connection to ${peripheral.id}:`, error);
+        }
     }
 
     /** Connects to the peripheral and opens the BTP channel on its Matter service. */
