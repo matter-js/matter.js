@@ -445,30 +445,19 @@ describe("WebRtcTransportRequestorServer", () => {
         });
 
         it("logs the signal it refused with the peer and its own endpoint", async () => {
-            const messages = new Array<string>();
-            Logger.destinations.capture = LogDestination({
-                add(message: Diagnostic.Message) {
-                    if (message.facility === "WebRtcTransportRequestorServer" && message.level === LogLevel.DEBUG) {
-                        messages.push(String(message.values[0]));
-                    }
-                },
-            });
-            try {
-                await expect(
-                    withPeerContext(node, FABRIC, PEER_NODE, async context => {
-                        await cameraEndpoint!
-                            .agentFor(context)
-                            .get(WebRtcTransportRequestorServer)
-                            .answer({ webRtcSessionId: 999, sdp: "answer" });
-                    }),
-                ).to.be.rejectedWith(/NotFound|not found/i);
-            } finally {
-                delete Logger.destinations.capture;
-            }
+            using logs = captureRefusalLogs();
+            await expect(
+                withPeerContext(node, FABRIC, PEER_NODE, async context => {
+                    await cameraEndpoint!
+                        .agentFor(context)
+                        .get(WebRtcTransportRequestorServer)
+                        .answer({ webRtcSessionId: 999, sdp: "answer" });
+                }),
+            ).to.be.rejectedWith(/NotFound|not found/i);
 
-            expect(messages.filter(message => message.startsWith("session refused"))).deep.equals([
+            expect(logs.messages).deep.equals([
                 `session refused signal=answer webRtcSessionId=999 fabricIndex=1 peerNodeId=42 ` +
-                    `requestorEndpointId=${cameraEndpoint!.number}`,
+                    `requestorEndpointId=${cameraEndpoint!.number} wait=not-held`,
             ]);
         });
 
@@ -898,6 +887,7 @@ describe("WebRtcTransportRequestorServer", () => {
         });
 
         it("refuses a held signal once the hold is disposed and its session is still unknown", async () => {
+            using logs = captureRefusalLogs();
             const refusals = recordRefusals();
             const taken = hold();
 
@@ -909,6 +899,7 @@ describe("WebRtcTransportRequestorServer", () => {
             expect(await settlesPromptly(held)).equals(true);
             expectNotFound(await held);
             expect(refusals).deep.equals([{ signal: "offer", sessionId: 99 }]);
+            expect(logs.messages.map(message => message.split(" ").at(-1))).deep.equals(["wait=hold-ended"]);
         });
 
         it("refuses a held signal at once when the hold is disposed without a registration", async () => {
@@ -938,6 +929,7 @@ describe("WebRtcTransportRequestorServer", () => {
         });
 
         it("refuses a held signal after the hold time from its arrival", async () => {
+            using logs = captureRefusalLogs();
             const refusals = recordRefusals();
             hold();
 
@@ -951,6 +943,7 @@ describe("WebRtcTransportRequestorServer", () => {
             expect(await settlesPromptly(held)).equals(true);
             expectNotFound(await held);
             expect(refusals).deep.equals([{ signal: "offer", sessionId: SESSION_ID }]);
+            expect(logs.messages.map(message => message.split(" ").at(-1))).deep.equals(["wait=timed-out"]);
             expect(isRecheckObserved()).equals(false);
         });
 
@@ -1529,3 +1522,28 @@ describe("WebRtcTransportRequestorServer", () => {
         });
     });
 });
+
+/**
+ * Collects the requestor's "session refused" debug lines until disposed.
+ */
+function captureRefusalLogs() {
+    const messages = new Array<string>();
+    Logger.destinations.capture = LogDestination({
+        add(message: Diagnostic.Message) {
+            const text = String(message.values[0]);
+            if (
+                message.facility === "WebRtcTransportRequestorServer" &&
+                message.level === LogLevel.DEBUG &&
+                text.startsWith("session refused")
+            ) {
+                messages.push(text);
+            }
+        },
+    });
+    return {
+        messages,
+        [Symbol.dispose]() {
+            delete Logger.destinations.capture;
+        },
+    };
+}

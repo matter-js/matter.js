@@ -69,7 +69,8 @@ export class WebRtcTransportRequestorServer extends WebRtcTransportRequestorBeha
      * 5 seconds cover only this wait; the signal then still waits for this behavior's lock, without a time limit.
      *
      * The holds that exist when the node goes offline end then. A hold you take while the node is offline stays until you
-     * dispose it. When the behavior closes, a waiting signal is usually refused with NotFound. In a short window during close (the datasource closes before the behavior is disposed), the signal can fail with a generic failure instead.
+     * dispose it. When the behavior closes, a waiting signal is usually refused with NotFound. In a short window during
+     * close (the datasource closes before the behavior is disposed), the signal can fail with a generic failure instead.
      *
      * Take the hold before you send the request. Dispose it after you tried to register the session and before any
      * cleanup that ends the session at the provider, so a held signal for a failed session is refused at once. Here
@@ -305,7 +306,7 @@ export class WebRtcTransportRequestorServer extends WebRtcTransportRequestorBeha
     async #lockSession(signal: WebRtcTransportRequestorServer.SignalKind, id: number) {
         const peer = this.#peer();
         const key = { id, fabricIndex: peer.fabricIndex, peerNodeId: peer.nodeId };
-        await this.#awaitRegistration(signal, key);
+        const wait = await this.#awaitRegistration(signal, key);
         if (this.internal.closed) {
             logger.debug(
                 `session refused signal=${signal} webRtcSessionId=${id} fabricIndex=${peer.fabricIndex} ` +
@@ -314,19 +315,20 @@ export class WebRtcTransportRequestorServer extends WebRtcTransportRequestorBeha
             throw new StatusResponseError(`WebRTC session ${id} not found`, Status.NotFound);
         }
         await this.context.transaction.lock(this);
-        return this.#sessionOrRefuse(signal, key, peer);
+        return this.#sessionOrRefuse(signal, key, peer, wait);
     }
 
     #sessionOrRefuse(
         signal: WebRtcTransportRequestorServer.SignalKind,
         key: WebRtcTransportRequestorServer.SessionKey,
         peer: PeerAddress,
+        wait: HoldWait,
     ) {
         const session = this.state.currentSessions.find(s => isSameSession(s, key));
         if (session === undefined) {
             logger.debug(
                 `session refused signal=${signal} webRtcSessionId=${key.id} fabricIndex=${peer.fabricIndex} ` +
-                    `peerNodeId=${peer.nodeId} requestorEndpointId=${this.endpoint.number}`,
+                    `peerNodeId=${peer.nodeId} requestorEndpointId=${this.endpoint.number} wait=${wait}`,
             );
             this.events.refused.emit(signal, key.id, peer);
             throw new StatusResponseError(`WebRTC session ${key.id} not found`, Status.NotFound);
@@ -360,9 +362,9 @@ export class WebRtcTransportRequestorServer extends WebRtcTransportRequestorBeha
     async #awaitRegistration(
         signal: WebRtcTransportRequestorServer.SignalKind,
         key: WebRtcTransportRequestorServer.SessionKey,
-    ) {
+    ): Promise<HoldWait> {
         if (!this.#isHeld(key)) {
-            return;
+            return "not-held";
         }
         logger.debug(
             `holding signal=${signal} webRtcSessionId=${key.id} fabricIndex=${key.fabricIndex} ` +
@@ -380,8 +382,17 @@ export class WebRtcTransportRequestorServer extends WebRtcTransportRequestorBeha
                 observer?.[Symbol.dispose]();
             }
         }
+        if (this.#isTracked(key)) {
+            return "registered";
+        }
+        return timeout.aborted ? "timed-out" : "hold-ended";
     }
 }
+
+/**
+ * How the wait of a signal for its session ended, logged when the signal is refused.
+ */
+type HoldWait = "not-held" | "registered" | "hold-ended" | "timed-out";
 
 function isSameSession(a: WebRtcTransportRequestorServer.SessionKey, b: WebRtcTransportRequestorServer.SessionKey) {
     return a.id === b.id && a.fabricIndex === b.fabricIndex && a.peerNodeId === b.peerNodeId;
