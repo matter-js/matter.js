@@ -455,17 +455,8 @@ export class ControllerCommissioningFlow {
                 }
             } catch (e) {
                 const error = asError(e);
-                const cancel = this.#requestAbort;
-                if (cancel?.aborted) {
-                    logger.info(
-                        `Commissioning step ${step.stepNumber}.${step.subStepNumber}: ${step.name} canceled:`,
-                        Diagnostic.errorMessage(error),
-                    );
-                    await this.#expireFailsafe(error);
-                    throw asError(cancel.reason);
-                }
-
-                if (error instanceof RecoverableCommissioningError) {
+                const canceledBeforeCleanup = this.#requestAbort?.aborted === true;
+                if (!canceledBeforeCleanup && error instanceof RecoverableCommissioningError) {
                     logger.warn(
                         `Commissioning step ${step.stepNumber}.${step.subStepNumber}: ${step.name} failed with recoverable error:`,
                         Diagnostic.errorMessage(error),
@@ -475,7 +466,7 @@ export class ControllerCommissioningFlow {
                 }
 
                 const isCommissioningFailure = causedBy(error, CommissioningError, StatusResponseError);
-                if (isCommissioningFailure) {
+                if (!canceledBeforeCleanup && isCommissioningFailure) {
                     logger.warn(
                         `Commissioning step ${step.stepNumber}.${step.subStepNumber}: ${step.name} failed with error:`,
                         Diagnostic.errorMessage(error),
@@ -484,6 +475,16 @@ export class ControllerCommissioningFlow {
                 }
 
                 await this.#expireFailsafe(error);
+
+                // A cancel that arrived during the cleanup decides the outcome as well
+                const cancel = this.#requestAbort;
+                if (cancel?.aborted) {
+                    logger.info(
+                        `Commissioning step ${step.stepNumber}.${step.subStepNumber}: ${step.name} canceled:`,
+                        Diagnostic.errorMessage(error),
+                    );
+                    throw asError(cancel.reason);
+                }
 
                 if (isCommissioningFailure) {
                     StatusResponseError.accept(error);
@@ -1143,8 +1144,9 @@ export class ControllerCommissioningFlow {
      * fail-safe counts as armed from the start, because the device arms it when PASE is established (step 6).
      * Otherwise it waits for a re-arm already sent, then sends over the PASE session, or after the operational
      * reconnect only over a session that exists now, so a device that dropped the session is not reconnected only to
-     * end its fail-safe.  After a cancel it waits at most {@link CANCELED_EXPIRY_WAIT} for the answer.  A failure only
-     * logs: the device ends the fail-safe itself when it expires.
+     * end its fail-safe.  After a cancel, also one that arrives while it waits, it waits at most
+     * {@link CANCELED_EXPIRY_WAIT} for the answer.  A failure only logs: the device ends the fail-safe itself when it
+     * expires.
      *
      * @see {@link MatterSpecification.v161.Core} § 5.5.1
      */
@@ -1159,7 +1161,16 @@ export class ControllerCommissioningFlow {
         }
 
         await this.#periodicArm;
-        using canceledWait = this.#requestAbort?.aborted ? new Abort({ timeout: CANCELED_EXPIRY_WAIT }) : undefined;
+        using expiryWait = new Abort();
+        let canceledDeadline: Timer | undefined;
+        using _waitAfterCancel = new Abort({
+            abort: this.#requestAbort,
+            handler: () => {
+                canceledDeadline = Time.getTimer("Canceled failsafe expiry", CANCELED_EXPIRY_WAIT, () =>
+                    expiryWait.abort(),
+                ).start();
+            },
+        });
         try {
             this.#ensureGeneralCommissioningSuccess(
                 "armFailSafe",
@@ -1174,7 +1185,7 @@ export class ControllerCommissioningFlow {
                         },
                     },
                     {},
-                    { requireExistingSession: true, abort: canceledWait?.signal },
+                    { requireExistingSession: true, abort: expiryWait.signal },
                 ),
             );
             this.#currentFailSafeEndTime = undefined;
@@ -1183,6 +1194,8 @@ export class ControllerCommissioningFlow {
                 "Could not end the failsafe, the device stays in commissioning until its failsafe expires:",
                 Diagnostic.errorMessage(asError(error)),
             );
+        } finally {
+            canceledDeadline?.stop();
         }
     }
 
@@ -1359,21 +1372,25 @@ export class ControllerCommissioningFlow {
         let baseError: Error | undefined;
         let dacPublicKey: ReturnType<typeof PublicKey> | undefined;
         try {
-            const result = await DeviceAttestationValidator.validate(
-                {
-                    crypto: this.fabric.crypto,
-                    dclCertificateService: attestation.dclCertificateService,
-                    attestationChallenge: attestation.challengeKey,
-                },
-                {
-                    dac: deviceAttestation,
-                    pai: productAttestation,
-                    attestationElements,
-                    attestationSignature,
-                    attestationNonce,
-                    vendorId: this.collectedCommissioningData.vendorId,
-                    productId: this.collectedCommissioningData.productId,
-                },
+            // The DCL lookups take no cancel signal, so only the wait for them can be canceled
+            const result = await Abort.attempt(
+                this.#requestAbort,
+                DeviceAttestationValidator.validate(
+                    {
+                        crypto: this.fabric.crypto,
+                        dclCertificateService: attestation.dclCertificateService,
+                        attestationChallenge: attestation.challengeKey,
+                    },
+                    {
+                        dac: deviceAttestation,
+                        pai: productAttestation,
+                        attestationElements,
+                        attestationSignature,
+                        attestationNonce,
+                        vendorId: this.collectedCommissioningData.vendorId,
+                        productId: this.collectedCommissioningData.productId,
+                    },
+                ),
             );
             findings = result.findings;
             dacPublicKey = result.dacPublicKey;

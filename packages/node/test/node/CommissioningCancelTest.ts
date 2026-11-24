@@ -38,8 +38,9 @@ import type { OperationalCredentials } from "@matter/types/clusters/operational-
  * Where the commissioning waits when the cancel comes.  The device withholds its answer to a held command, `sigma1`
  * drops the operational CASE handshake, `read` withholds every device answer from step GetInitialData on,
  * `customStep` is a step of a custom flow that sends nothing, `finalize` is an external finalization that takes
- * 305 seconds, into the last half minute of the failsafe the flow armed for it, and `reconnectArm` holds the
- * ArmFailSafe the flow sends before an external finalization.
+ * 305 seconds, into the last half minute of the failsafe the flow armed for it, `reconnectArm` holds the
+ * ArmFailSafe the flow sends before an external finalization, and `expiryAfterFailure` holds the failsafe expiry that
+ * follows a failing step.
  */
 type HeldStep =
     | "armFailSafe"
@@ -49,7 +50,8 @@ type HeldStep =
     | "read"
     | "customStep"
     | "finalize"
-    | "reconnectArm";
+    | "reconnectArm"
+    | "expiryAfterFailure";
 
 /** The device withholds its answer to the first {@link step} until {@link release} resolves. */
 interface Hold {
@@ -83,7 +85,11 @@ class HoldingGeneralCommissioningServer extends GeneralCommissioningServer {
         }
         const response = await super.armFailSafe(request);
         // The flow arms for the operational step much longer than the device's 60 second default
-        await holdIfRequested(request.expiryLengthSeconds > 60 ? "reconnectArm" : "armFailSafe");
+        if (request.expiryLengthSeconds === 0) {
+            await holdIfRequested("expiryAfterFailure");
+        } else {
+            await holdIfRequested(request.expiryLengthSeconds > 60 ? "reconnectArm" : "armFailSafe");
+        }
         return response;
     }
 
@@ -154,6 +160,18 @@ describe("Commissioning cancel", () => {
                     }
                     return readInitialData();
                 };
+
+                if (step === "expiryAfterFailure") {
+                    const index = this.commissioningSteps.findIndex(({ name }) => name === "AccessControl") + 1;
+                    this.commissioningSteps.splice(index, 0, {
+                        stepNumber: 15,
+                        subStepNumber: 99,
+                        name: "Failing step",
+                        stepLogic: async () => {
+                            throw new InternalError("Simulated step failure (test)");
+                        },
+                    });
+                }
 
                 if (step === "customStep") {
                     const index = this.commissioningSteps.findIndex(({ name }) => name === "AccessControl") + 1;
@@ -247,9 +265,9 @@ describe("Commissioning cancel", () => {
             commissioning.cancel(reason);
         }
 
-        // A held CSRRequest stays unanswered, so only a cancel of the request itself settles the commissioning.  The
-        // device answers the other held requests, so the controller can end the failsafe the device armed.
-        if (step !== "csrRequest") {
+        // A held CSRRequest or expiry stays unanswered, so only the cancel settles the commissioning.  The device
+        // answers the other held requests, so the controller can end the failsafe the device armed.
+        if (step !== "csrRequest" && step !== "expiryAfterFailure") {
             release();
         }
         let error: unknown;
@@ -372,5 +390,13 @@ describe("Commissioning cancel", () => {
         expect(result.finalizationStarted).equals(false);
         expect(expiryRequests).equals(1);
         expect(result.failsafeArmed).equals(false);
+    });
+
+    it("stops waiting for the failsafe expiry after a failed step when the cancel comes during it", async () => {
+        await using site = new MockSite();
+        const result = await commissionAndCancel(site, "expiryAfterFailure");
+
+        expect(result.error).equals(result.reason);
+        expect(result.settledAfter).lessThan(Seconds(3));
     });
 });

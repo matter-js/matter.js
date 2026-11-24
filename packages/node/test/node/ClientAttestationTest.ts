@@ -10,6 +10,7 @@ import {
     Crypto,
     DerCodec,
     DerType,
+    ImplementationError,
     MockCrypto,
     MockFetch,
     Pem,
@@ -214,6 +215,9 @@ interface AttestationTestOptions {
 
     /** BasicInformation VendorID the device reports, set after its certification took the original VendorID. */
     basicInformationVendorId?: VendorId;
+
+    /** Holds the DCL revocation lookup unanswered and aborts the commissioning with this reason once it starts. */
+    cancelDuringRevocationLookup?: Error;
 }
 
 /**
@@ -223,6 +227,7 @@ interface AttestationTestOptions {
 async function runAttestationTest(options: AttestationTestOptions) {
     const fetchMock = new MockFetch();
     let dclService: DclCertificateService | undefined;
+    let releaseHeldLookup = () => {};
 
     try {
         if (options.dclPaaCert !== undefined && options.setupBeforeCommission === undefined) {
@@ -312,12 +317,29 @@ async function runAttestationTest(options: AttestationTestOptions) {
             commissioningOptions.onAttestationFailure = options.onAttestationFailure;
         }
 
+        const abort = new AbortController();
+        const cancelReason = options.cancelDuringRevocationLookup;
+        if (cancelReason !== undefined) {
+            const mockedFetch = globalThis.fetch;
+            // fetchMock.uninstall() in the finally block restores the original fetch
+            globalThis.fetch = (input, init) => {
+                if (String(input).includes("/dcl/pki/revocation-points")) {
+                    abort.abort(cancelReason);
+                    return new Promise<Response>((_resolve, reject) => {
+                        releaseHeldLookup = () => reject(new ImplementationError("Held DCL lookup released (test)"));
+                    });
+                }
+                return mockedFetch(input, init);
+            };
+        }
+
         const { passcode, discriminator } = device.state.commissioning;
         const commissionPromise = MockTime.resolve(
             controller.peers.commission({
                 passcode,
                 discriminator,
                 timeout: Seconds(90),
+                abort: abort.signal,
                 ...commissioningOptions,
             }),
             { macrotasks: true },
@@ -351,6 +373,7 @@ async function runAttestationTest(options: AttestationTestOptions) {
             options.assertResult(device, controller.peers.size);
         }
     } finally {
+        releaseHeldLookup();
         if (dclService !== undefined) {
             await dclService.close();
         }
@@ -513,6 +536,22 @@ describe("device attestation during commissioning", () => {
                 onAttestationFailure: false,
                 expectRejection: /DER data is truncated/,
             }));
+    });
+
+    describe("cancel", () => {
+        it("stops waiting for a DCL lookup when the commissioning is canceled", () => {
+            const reason = new ImplementationError("Caller gave up");
+            return runAttestationTest({
+                dclPaaCert: TestCert_PAA_NoVID_Cert,
+                cancelDuringRevocationLookup: reason,
+                expectRejection: error => {
+                    expect(error).equals(reason);
+                },
+                assertResult: device => {
+                    expect(device.state.commissioning.commissioned).equals(false);
+                },
+            });
+        });
     });
 
     describe("with DCL trust store (test-only PAA)", () => {
