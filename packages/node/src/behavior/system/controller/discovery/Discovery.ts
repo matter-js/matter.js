@@ -49,8 +49,8 @@ export abstract class Discovery<T = unknown> extends CancelablePromise<T> {
     #options: Discovery.Options;
     #resolve: (value: T) => void;
     #reject: (cause?: any) => void;
-    #settled?: Promise<void>;
-    #resolveSettled?: () => void;
+    readonly #settled: Promise<void>;
+    readonly #resolveSettled: () => void;
 
     constructor(owner: ServerNode, options: Discovery.Options | undefined) {
         let resolve: (value: T) => void, reject: (cause?: any) => void;
@@ -59,12 +59,16 @@ export abstract class Discovery<T = unknown> extends CancelablePromise<T> {
             reject = rejecter;
         });
 
+        let resolveSettled = () => {};
+        this.#settled = new Promise<void>(resolve => (resolveSettled = resolve));
+        this.#resolveSettled = resolveSettled;
+
         this.#resolve = result => {
             this.#isStopped = true;
             this.#callerAbort?.close();
             this.#owner.env.get(ActiveDiscoveries).delete(this);
             resolve!(result);
-            this.#resolveSettled?.();
+            this.#resolveSettled();
         };
         this.#reject = cause => {
             this.#isStopped = true;
@@ -76,7 +80,7 @@ export abstract class Discovery<T = unknown> extends CancelablePromise<T> {
                 logger.debug(`${this} was interrupted, so it reports the interruption instead of:`, cause);
             }
             reject!(reason ?? cause);
-            this.#resolveSettled?.();
+            this.#resolveSettled();
         };
 
         owner.env.get(ActiveDiscoveries).add(this);
@@ -87,10 +91,8 @@ export abstract class Discovery<T = unknown> extends CancelablePromise<T> {
         queueMicrotask(this.#initializeController.bind(this));
     }
 
+    /** Resolves once the discovery has resolved or rejected, also when read afterwards.  Never rejects. */
     get settled() {
-        if (this.#settled === undefined) {
-            this.#settled = new Promise(resolve => (this.#resolveSettled = resolve));
-        }
         return this.#settled;
     }
 
