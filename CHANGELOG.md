@@ -89,6 +89,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: A ClientNode reads its root's PartsList as listing every endpoint, whatever device types the root reports
     - Adjustment: `ServerSubscriptionContext.initiateExchange()` takes only a `Session`, no longer a `PeerAddress`
     - Adjustment: `SessionsBehavior` events `opened` and `closed` no longer fire for a session whose handshake fails
+    - Fix: A device accepts Invoke and Write requests that leave out a false SuppressResponse or TimedRequest, and group Write requests that leave out SuppressResponse, as the CHIP SDK sends them
     - Fix: A client emits an event that arrives before the data of its cluster in the same read, instead of dropping it as an event of an unsupported cluster
     - Fix: `ThermostatServer` keeps the preset that the application activates with `setActivePresetRequest`
     - Fix: `ThermostatServer` treats `ControlSequenceOfOperation` CoolingWithReheat as the sequence without heating, instead of CoolingAndHeatingWithReheat, and automatic mode management in Auto turns the running mode off instead of failing when the sequence does not allow heating or cooling

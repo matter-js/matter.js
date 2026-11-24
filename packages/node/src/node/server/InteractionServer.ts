@@ -396,7 +396,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         message: Message,
     ): Promise<void> {
         let { suppressResponse, writeRequests, moreChunkedMessages } = writeRequest;
-        const { timedRequest } = writeRequest;
+        const { timedRequest = false } = writeRequest;
         const sessionType = message.packetHeader.sessionType;
 
         logger.info(() => [
@@ -406,6 +406,11 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             Diagnostic.asFlags({ suppressResponse, moreChunkedMessages }),
             Diagnostic.weak(writeRequests.map(req => this.#node.protocol.inspectPath(req.path)).join(", ")),
         ]);
+
+        if (sessionType === SessionType.Group && suppressResponse === undefined) {
+            // A group write is never answered, so a sender may leave the flag out
+            suppressResponse = true;
+        }
 
         if (moreChunkedMessages && suppressResponse) {
             throw new StatusResponseError(
@@ -968,7 +973,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         messenger: InteractionServerMessenger,
         message: Message,
     ): Promise<void> {
-        const { invokeRequests, timedRequest, suppressResponse, delayReportData } = request;
+        const { invokeRequests, timedRequest = false, suppressResponse, delayReportData } = request;
         logger.info(() => [
             "Invoke",
             Mark.INBOUND,

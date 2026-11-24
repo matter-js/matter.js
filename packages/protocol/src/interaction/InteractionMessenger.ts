@@ -1262,6 +1262,7 @@ export class InteractionClientMessenger extends IncomingInteractionClientMesseng
         invokeRequest: InvokeRequest,
         options?: ExchangeSendOptions,
     ): Promise<InvokeResponse | undefined> {
+        invokeRequest = InteractionClientMessenger.requestFlagsForSending(invokeRequest, this.session);
         if (invokeRequest.suppressResponse) {
             await this.requestWithSuppressedResponse(
                 MessageType.InvokeRequest,
@@ -1325,6 +1326,7 @@ export class InteractionClientMessenger extends IncomingInteractionClientMesseng
         writeRequest: WriteRequest,
         options?: ExchangeSendOptions,
     ): Promise<WriteResponse | undefined> {
+        writeRequest = InteractionClientMessenger.requestFlagsForSending(writeRequest, this.session);
         const chunks = this.#chunkWriteRequest(writeRequest);
 
         if (writeRequest.suppressResponse) {
@@ -1554,5 +1556,47 @@ export class InteractionClientMessenger extends IncomingInteractionClientMesseng
             MessageType[responseMessageType] ?? `Response-${Diagnostic.hex(responseMessageType)}`,
         );
         return responseSchema.decode(responseMessage.payload);
+    }
+}
+
+export namespace InteractionClientMessenger {
+    /**
+     * The Interaction Model revision from which a sender leaves out a SuppressResponse or TimedRequest that is false.
+     */
+    export const FALSE_REQUEST_FLAGS_OMITTED_FROM_REVISION = 14;
+
+    /**
+     * Prepares the SuppressResponse and TimedRequest flags of an Invoke or Write request for sending.
+     *
+     * Once {@link ownRevision} reaches {@link FALSE_REQUEST_FLAGS_OMITTED_FROM_REVISION}, a false flag is left out of a
+     * group request and of a request to a peer that reported that revision or later; a receiver treats a missing flag
+     * as false.  Otherwise both flags are sent as given, and a missing flag stays missing.  Callers therefore set both
+     * flags; the `Write` and `Invoke` request builders do.  The request itself is not changed.
+     *
+     * @param request the Invoke or Write request to send
+     * @param session the session the request is sent on
+     * @param ownRevision the Interaction Model revision of this node
+     */
+    export function requestFlagsForSending<T extends { suppressResponse?: boolean; timedRequest?: boolean }>(
+        request: T,
+        session: { type: SessionType; parameters: { interactionModelRevision: number } },
+        ownRevision: number = Specification.INTERACTION_MODEL_REVISION,
+    ): T {
+        if (
+            ownRevision < FALSE_REQUEST_FLAGS_OMITTED_FROM_REVISION ||
+            (session.type !== SessionType.Group &&
+                session.parameters.interactionModelRevision < FALSE_REQUEST_FLAGS_OMITTED_FROM_REVISION)
+        ) {
+            return request;
+        }
+
+        const result = { ...request };
+        if (result.suppressResponse === false) {
+            delete result.suppressResponse;
+        }
+        if (result.timedRequest === false) {
+            delete result.timedRequest;
+        }
+        return result;
     }
 }

@@ -14,11 +14,20 @@ import { TlvAttributeData } from "../types/TlvAttributeData.js";
 /** @see {@link MatterSpecification.v161.Core}, section 10.7.6 */
 
 export const TlvWriteRequest = TlvObject({
-    /** Do not send a response to this action. */
+    /**
+     * Do not send a response to this action.  A receiver treats a missing field as false, except in a group write,
+     * which is never answered and so counts as true.
+     * A sender sets the field: the field is only left out on the wire by
+     * `InteractionClientMessenger.requestFlagsForSending`, and a receiver that requires it refuses the request.
+     */
     suppressResponse: TlvOptionalField(0, TlvBoolean),
 
-    /** Flag action as part of a timed write transaction. */
-    timedRequest: TlvField(1, TlvBoolean),
+    /**
+     * Flag action as part of a timed write transaction.  A receiver treats a missing field as false.
+     * A sender sets the field: the field is only left out on the wire by
+     * `InteractionClientMessenger.requestFlagsForSending`, and a receiver that requires it refuses the request.
+     */
+    timedRequest: TlvOptionalField(1, TlvBoolean),
 
     /** A list of one or more path and data tuples. */
     writeRequests: TlvField(2, TlvArray(TlvAttributeData)),
