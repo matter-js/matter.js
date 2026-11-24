@@ -67,6 +67,7 @@ import {
     encodeEventPayload,
     EventReportPayload,
 } from "./AttributeDataEncoder.js";
+import { requestFlagsForSending } from "./RequestFlags.js";
 import { Subscription, SubscriptionId } from "./Subscription.js";
 
 export enum MessageType {
@@ -1245,6 +1246,7 @@ export class InteractionClientMessenger extends IncomingInteractionClientMesseng
         invokeRequest: InvokeRequest,
         options?: ExchangeSendOptions,
     ): Promise<InvokeResponse | undefined> {
+        invokeRequest = requestFlagsForSending(invokeRequest, this.session);
         if (invokeRequest.suppressResponse) {
             await this.requestWithSuppressedResponse(
                 MessageType.InvokeRequest,
@@ -1308,6 +1310,7 @@ export class InteractionClientMessenger extends IncomingInteractionClientMesseng
         writeRequest: WriteRequest,
         options?: ExchangeSendOptions,
     ): Promise<WriteResponse | undefined> {
+        writeRequest = requestFlagsForSending(writeRequest, this.session);
         const chunks = this.#chunkWriteRequest(writeRequest);
 
         if (writeRequest.suppressResponse) {

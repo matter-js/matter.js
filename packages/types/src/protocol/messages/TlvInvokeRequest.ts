@@ -15,11 +15,11 @@ import { TlvDelayReportData } from "../types/TlvDelayReportData.js";
 /** @see {@link MatterSpecification.v161.Core}, section 10.7.9 */
 
 export const TlvInvokeRequest = TlvObject({
-    /** Do not send a response to this action. */
-    suppressResponse: TlvField(0, TlvBoolean),
+    /** Do not send a response to this action.  Absent counts as false; the CHIP SDK leaves out false values. */
+    suppressResponse: TlvOptionalField(0, TlvBoolean),
 
-    /** Flag action as part of a timed invoke transaction. */
-    timedRequest: TlvField(1, TlvBoolean),
+    /** Flag action as part of a timed invoke transaction.  Absent counts as false; the CHIP SDK leaves out false values. */
+    timedRequest: TlvOptionalField(1, TlvBoolean),
 
     /** Cluster command(s) to invoke. */
     invokeRequests: TlvField(2, TlvArray(TlvCommandData)),

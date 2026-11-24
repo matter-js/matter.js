@@ -1435,6 +1435,20 @@ describe("InteractionProtocol", () => {
             expect(node.state.basicInformation.nodeLabel).equals("test");
         });
 
+        it("writes values when the request leaves out TimedRequest", async () => {
+            const { timedRequest: _timedRequest, ...request } = WRITE_REQUEST;
+            const { messenger, getResponse } = createMockWriteMessenger();
+            await interactionProtocol.handleWriteRequest(
+                await createDummyMessageExchange(node),
+                request,
+                messenger,
+                interaction.BarelyMockedMessage,
+            );
+
+            expect(getResponse()).deep.equals(WRITE_RESPONSE);
+            expect(node.state.basicInformation.nodeLabel).equals("test");
+        });
+
         it("write chunked array values with Fabric Index handling", async () => {
             const fabric = await node.addFabric();
             await node.set({
@@ -2041,6 +2055,46 @@ describe("InteractionProtocol", () => {
             expect(node.state.basicInformation.nodeLabel).equals("");
         });
 
+        it("writes a group write that leaves out SuppressResponse without answering it", async () => {
+            const { suppressResponse: _suppressResponse, timedRequest: _timedRequest, ...request } = WRITE_REQUEST;
+            const { messenger, getResponse } = createMockWriteMessenger();
+            await interactionProtocol.handleWriteRequest(
+                await createDummyMessageExchange(node),
+                request,
+                messenger,
+                interaction.BarelyMockedGroupMessage,
+            );
+
+            expect(getResponse()).undefined;
+            expect(node.state.basicInformation.nodeLabel).equals("test");
+        });
+
+        it("refuses a chunked group write that leaves out SuppressResponse", async () => {
+            const { suppressResponse: _suppressResponse, ...request } = { ...WRITE_REQUEST, moreChunkedMessages: true };
+            const { messenger } = createMockWriteMessenger();
+            await expect(
+                interactionProtocol.handleWriteRequest(
+                    await createDummyMessageExchange(node),
+                    request,
+                    messenger,
+                    interaction.BarelyMockedGroupMessage,
+                ),
+            ).rejectedWith("MoreChunkedMessages and SuppressResponse cannot be used together in write messages");
+            expect(node.state.basicInformation.nodeLabel).equals("");
+        });
+
+        it("refuses a group write with SuppressResponse false", async () => {
+            const { messenger } = createMockWriteMessenger();
+            await expect(
+                interactionProtocol.handleWriteRequest(
+                    await createDummyMessageExchange(node),
+                    WRITE_REQUEST,
+                    messenger,
+                    interaction.BarelyMockedGroupMessage,
+                ),
+            ).rejectedWith("Write requests are only allowed as group casts when suppressResponse=true.");
+        });
+
         it("write values and return errors on invalid values timed interaction in group message", async () => {
             let timedInteractionCleared = false;
             const messageExchange = await createDummyMessageExchange(node, undefined, true, false, undefined, () => {
@@ -2111,6 +2165,25 @@ describe("InteractionProtocol", () => {
             await interactionProtocol.handleInvokeRequest(
                 exchange,
                 INVOKE_COMMAND_REQUEST_WITH_EMPTY_ARGS,
+                messenger,
+                interaction.BarelyMockedMessage,
+            );
+
+            expect(decodeInvokeResponse(getResponse()!)).deep.equals(INVOKE_COMMAND_RESPONSE);
+            expect(onOffState).equals(true);
+        });
+
+        it("invokes a command whose request leaves out SuppressResponse and TimedRequest", async () => {
+            const {
+                suppressResponse: _suppressResponse,
+                timedRequest: _timedRequest,
+                ...request
+            } = INVOKE_COMMAND_REQUEST_WITH_EMPTY_ARGS;
+            const exchange = await createDummyMessageExchange(node);
+            const { messenger, getResponse } = createMockInvokeMessenger();
+            await interactionProtocol.handleInvokeRequest(
+                exchange,
+                request,
                 messenger,
                 interaction.BarelyMockedMessage,
             );

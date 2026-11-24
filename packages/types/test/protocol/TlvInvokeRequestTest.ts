@@ -41,6 +41,17 @@ describe("TlvInvokeRequest", () => {
         );
     });
 
+    it("decodes a group request that leaves out SuppressResponse and TimedRequest", () => {
+        // An AddGroup group invoke as the CHIP SDK sends it, starting directly with InvokeRequests
+        const decoded = TlvInvokeRequest.decode(
+            Bytes.fromHex("153602153700240104240200183501250001012c010018181824ff0e18"),
+        );
+
+        expect(decoded.suppressResponse).undefined;
+        expect(decoded.timedRequest).undefined;
+        expect(decoded.invokeRequests.length).equals(1);
+    });
+
     it("round-trips DelayReportData in context tag 3", () => {
         const encoded = TlvInvokeRequest.encode(request);
 
