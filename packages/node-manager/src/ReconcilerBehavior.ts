@@ -5,6 +5,7 @@
  */
 
 import { ManagedFabric, managedFabricOf } from "#ManagedFabric.js";
+import { DriftWatcher } from "#reconcile/DriftWatcher.js";
 import { executeActions, ReconcileTarget } from "#reconcile/executeActions.js";
 import { BUILT_IN_KINDS } from "#reconcile/kinds.js";
 import { PeerWiring } from "#reconcile/PeerWiring.js";
@@ -29,12 +30,14 @@ import {
     ItemKind,
     ItemKindRegistry,
     itemMapKey,
+    ItemWatch,
     ManagedItem,
     NetworkClient,
     Node,
     currentReapplies,
     ServerNode,
 } from "@matter/node";
+import { BasicInformationClient } from "@matter/node/behaviors/basic-information";
 import { Fabric, FabricManager, SustainedSubscription } from "@matter/protocol";
 import { FabricIndex, GlobalFabricId, Status } from "@matter/types";
 
@@ -46,18 +49,18 @@ export function defaultRecoverable(code: number): boolean {
 }
 
 /**
- * Read the capacity of every kind that reports one, or of `only`, and hand each to `setCapacity`. Stops before the
- * next device read once `signal` is aborted.
+ * Read the capacity of every kind that reports one, or only of the kinds named in `only`, and hand each to
+ * `setCapacity`. Stops before the next device read once `signal` is aborted.
  */
 export async function refreshCapacities(
     node: ClientNode,
     registry: ItemKindRegistry,
     setCapacity: (kind: string, info: CapacityInfo) => void,
     signal: AbortSignal,
-    only?: string,
+    only?: ReadonlySet<string>,
 ): Promise<void> {
     for (const kind of registry.all()) {
-        if (kind.capacity === undefined || (only !== undefined && kind.kind !== only)) {
+        if (kind.capacity === undefined || (only !== undefined && !only.has(kind.kind))) {
             continue;
         }
         if (signal.aborted) {
@@ -74,9 +77,14 @@ export async function refreshCapacities(
     }
 }
 
-/** A coalesced reconcile request for a peer. `verify`/`refreshCapacity` OR-merge across requests. */
+/**
+ * A coalesced reconcile request for a peer. `verify`/`refreshCapacity` OR-merge across requests. Drift suspects are
+ * not part of it: they stay with the peer's {@link DriftWatcher} until the pass takes them.
+ */
 interface PendingPass {
+    /** Read every committed item live, for any reason other than drift. */
     verify: boolean;
+    /** Refresh the capacity of every kind, for any reason other than drift. */
     refreshCapacity: boolean;
 }
 
@@ -85,23 +93,24 @@ export function shouldStartSweep(internal: { disposed: boolean }): boolean {
 }
 
 /**
- * Read every committed item live. Stops before the next device read once `signal` is aborted; items not read by
- * then are in none of the result's sets.
+ * Read every committed item live, or only those whose {@link itemMapKey} is in `only`. Stops before the next device
+ * read once `signal` is aborted; items not read by then are in none of the result's sets.
  */
 export async function buildVerifyResult(
     node: ClientNode,
     items: readonly ManagedItem[],
     registry: ItemKindRegistry,
     signal: AbortSignal,
+    only?: ReadonlySet<string>,
 ): Promise<VerifyResult> {
     const verified = new Set<string>();
     const drifted = new Set<string>();
     const unread = new Map<string, unknown>();
     for (const item of items) {
-        if (item.status.state !== "committed") {
+        const mapKey = itemMapKey(item.kind, item.key);
+        if (item.status.state !== "committed" || (only !== undefined && !only.has(mapKey))) {
             continue;
         }
-        const mapKey = itemMapKey(item.kind, item.key);
         const kind = registry.get(item.kind);
         if (kind?.verify === undefined) {
             continue;
@@ -383,7 +392,14 @@ export class ReconcilerBehavior extends Behavior {
         if (this.internal.peers.has(peer)) {
             return;
         }
-        const wiring = new PeerWiring();
+        const driftWatcher = new DriftWatcher(peer, this.internal.registry, {
+            quietPeriod: () => this.endpoint.stateOf(ReconcilerBehavior).driftQuietPeriod,
+            maxBackoff: () => this.endpoint.stateOf(ReconcilerBehavior).sweepInterval,
+            reachable: () => this.#reachable(peer),
+            // Called from a timer, outside any transaction: it may only queue the pass
+            drift: () => this.#schedule(peer, { verify: false, refreshCapacity: false }),
+        });
+        const wiring = new PeerWiring(driftWatcher);
         this.internal.peers.set(peer, wiring);
         const { observers } = wiring;
 
@@ -399,11 +415,34 @@ export class ReconcilerBehavior extends Behavior {
             }
         });
 
-        observers.on(peer.lifecycle.softwareVersionChanged, () => {
+        const verifyEveryItem = () => {
             if (this.#reachable(peer)) {
                 this.#schedule(peer, { verify: true, refreshCapacity: true });
             }
-        });
+        };
+
+        observers.on(peer.lifecycle.softwareVersionChanged, verifyEveryItem);
+
+        // A device may keep its subscription across a restart, so only StartUp shows that it restarted
+        const observeStartUp = () => {
+            if (!peer.behaviors.has(BasicInformationClient)) {
+                return;
+            }
+            const startUp = peer.eventsOf(BasicInformationClient).startUp;
+            if (observers.observes(startUp)) {
+                return;
+            }
+            observers.on(startUp, () => {
+                logger.debug(`StartUp of ${peer.id}`);
+                verifyEveryItem();
+            });
+        };
+        // Emits for the clusters of every peer; `observeStartUp` asks this peer
+        observers.on(this.#rootNode.peers.clusterInstalled(BasicInformationClient), observeStartUp);
+        observeStartUp();
+
+        // Last, so an observer of the watcher that throws cannot keep the observers above from running
+        driftWatcher.start();
     }
 
     /** The peers of the managed fabric, or none while no fabric is managed. */
@@ -450,14 +489,21 @@ export class ReconcilerBehavior extends Behavior {
         if (pass === undefined) {
             return;
         }
-        const signal = this.#wiredSignal(peer);
-        if (signal === undefined) {
+        const wiring = this.#liveWiring(peer);
+        if (wiring === undefined) {
             return;
         }
-        if (pass.refreshCapacity) {
-            await this.#refreshCapacity(peer, signal);
+        const { signal, driftWatcher } = wiring;
+        using drift = driftWatcher.startPass();
+        const { suspects } = drift;
+        if (pass.refreshCapacity || suspects.size > 0) {
+            await this.#refreshCapacity(peer, signal, pass.refreshCapacity ? undefined : drift.kinds);
         }
-        await this.#reconcileEndpoint(peer, signal, { verify: pass.verify, disposition: "record" });
+        drift.result = await this.#reconcileEndpoint(peer, signal, {
+            verify: pass.verify || suspects.size > 0,
+            only: pass.verify ? undefined : suspects,
+            disposition: "record",
+        });
     }
 
     async #unwirePeer(peer: ClientNode) {
@@ -471,7 +517,7 @@ export class ReconcilerBehavior extends Behavior {
 
     // Called between a device write and the status that write earns, so it may not throw: a failed refresh leaves
     // the previous count, which the device's refusal of a later write still backs.
-    async #refreshCapacity(peer: ClientNode, signal: AbortSignal, only?: string) {
+    async #refreshCapacity(peer: ClientNode, signal: AbortSignal, only?: ReadonlySet<string>) {
         const updates = new Array<[string, CapacityInfo]>();
         await refreshCapacities(peer, this.internal.registry, (kind, info) => updates.push([kind, info]), signal, only);
         if (updates.length === 0 || signal.aborted) {
@@ -528,10 +574,13 @@ export class ReconcilerBehavior extends Behavior {
         logger.debug(`Reconcile ${peer.id}${options?.verify ? " (verify)" : ""}`);
         // Serialize on the peer's node-level mutex so an explicit reconcile never overlaps a triggered pass.
         const verifyResult = await this.#mutexFor(peer).produce(async () => {
-            const signal = this.#stillManagedAfterWait(peer, "reconcile") ? this.#wiredSignal(peer) : undefined;
-            return signal === undefined
+            const wiring = this.#stillManagedAfterWait(peer, "reconcile") ? this.#liveWiring(peer) : undefined;
+            return wiring === undefined
                 ? undefined
-                : this.#reconcileEndpoint(peer, signal, { verify: options?.verify ?? false, disposition: "reapply" });
+                : this.#explicitPass(peer, wiring, {
+                      verify: options?.verify ?? false,
+                      disposition: "reapply",
+                  });
         });
         throwFirstUnread(verifyResult);
     }
@@ -569,10 +618,10 @@ export class ReconcilerBehavior extends Behavior {
         }
         logger.info(`Retrying ${peer.id} ${kind.kind}:${key}`);
         const verifyResult = await this.#mutexFor(peer).produce(async () => {
-            const signal = this.#stillManagedAfterWait(peer, "retry") ? this.#wiredSignal(peer) : undefined;
-            return signal === undefined
+            const wiring = this.#stillManagedAfterWait(peer, "retry") ? this.#liveWiring(peer) : undefined;
+            return wiring === undefined
                 ? undefined
-                : this.#reconcileEndpoint(peer, signal, {
+                : this.#explicitPass(peer, wiring, {
                       verify: true,
                       disposition: "reapply",
                       retrying: itemMapKey(kind.kind, key),
@@ -582,16 +631,16 @@ export class ReconcilerBehavior extends Behavior {
     }
 
     /**
-     * The signal a pass for the peer runs under, taken once when the pass starts; `undefined` when the peer is not
-     * wired, and the pass is then dropped.
+     * The wiring a pass for the peer runs under, taken once when the pass starts: its signal, and the drift watcher
+     * the pass reports to. `undefined` when the peer is not wired, and the pass is then dropped.
      */
-    #wiredSignal(peer: ClientNode): AbortSignal | undefined {
-        const signal = this.internal.peers.get(peer)?.signal;
-        if (signal === undefined || signal.aborted) {
+    #liveWiring(peer: ClientNode): PeerWiring | undefined {
+        const wiring = this.internal.peers.get(peer);
+        if (wiring === undefined) {
             logger.debug(`Pass for ${peer.id} dropped: the peer is not wired`);
             return undefined;
         }
-        return signal;
+        return wiring;
     }
 
     /**
@@ -627,6 +676,13 @@ export class ReconcilerBehavior extends Behavior {
         return true;
     }
 
+    /**
+     * Register a kind the reconciler applies, verifies and watches items of.
+     *
+     * @throws DuplicateItemKindError when a kind of that name is registered already
+     * @throws ImplementationError when the kind declares only one of `watches` and `satisfiedBy`, or both without
+     *   `verify`
+     */
     registerItemKind(kind: ItemKind): void {
         this.internal.registry.register(kind);
     }
@@ -659,9 +715,27 @@ export class ReconcilerBehavior extends Behavior {
             currentItem(kind, key) {
                 return peer.stateOf(DesiredStateBehavior).items[itemMapKey(kind, key)];
             },
-            refreshCapacity: kind => this.#refreshCapacity(peer, signal, kind),
+            refreshCapacity: kind => this.#refreshCapacity(peer, signal, new Set([kind])),
         };
         await executeActions(target, planned, registry);
+    }
+
+    /**
+     * An explicit pass. A verify pass also takes the drift suspects handed over for the peer, because it reads every
+     * committed item anyway, and reports what it read to the watcher. A pass without `verify` opens no
+     * {@link DriftWatcher.startPass} window: it writes only items that are not committed, and no report judges those.
+     */
+    async #explicitPass(
+        peer: ClientNode,
+        { signal, driftWatcher }: PeerWiring,
+        options: { verify: boolean; disposition: DriftDisposition; retrying?: string },
+    ): Promise<VerifyResult | undefined> {
+        if (!options.verify) {
+            return this.#reconcileEndpoint(peer, signal, options);
+        }
+        using drift = driftWatcher.startPass();
+        drift.result = await this.#reconcileEndpoint(peer, signal, options);
+        return drift.result;
     }
 
     /**
@@ -673,6 +747,8 @@ export class ReconcilerBehavior extends Behavior {
         signal: AbortSignal,
         options: {
             verify: boolean;
+            /** With `verify`, read only the items with these {@link itemMapKey} keys. */
+            only?: ReadonlySet<string>;
             disposition: DriftDisposition;
             /** The {@link itemMapKey} of an item {@link retry} may write back whatever its hold and budget say. */
             retrying?: string;
@@ -681,7 +757,7 @@ export class ReconcilerBehavior extends Behavior {
         const items = Object.values(peer.stateOf(DesiredStateBehavior).items);
 
         const result = options.verify
-            ? await buildVerifyResult(peer, items, this.internal.registry, signal)
+            ? await buildVerifyResult(peer, items, this.internal.registry, signal, options.only)
             : undefined;
         if (signal.aborted) {
             logger.debug(`Pass for ${peer.id} discarded: the peer was unwired while its live read was out`);
@@ -822,7 +898,21 @@ export class ReconcilerBehavior extends Behavior {
 export namespace ReconcilerBehavior {
     export class State {
         settleDelay: Duration = Seconds(5);
+
+        /**
+         * How often every reachable peer of the managed fabric that holds items gets a pass without a live read, which
+         * writes pending items and retries failed ones. Also the longest wait before a drift pass whose live read
+         * failed is tried again, unless {@link driftQuietPeriod} is longer.
+         */
         sweepInterval: Duration = Minutes(5);
+
+        /**
+         * How long the subscription reports of a peer must stay away before its drift suspects are read live, so an
+         * edit made in several steps is read once. Only a report of a watched attribute that leaves suspects starts
+         * the wait again. After a failed drift read the wait doubles per failure, up to
+         * {@link sweepInterval} or this period, whichever is longer.
+         */
+        driftQuietPeriod: Duration = Seconds(2);
 
         /**
          * How often a drifted item is re-applied: at most `count` times within `window`, counting every re-apply —
@@ -882,4 +972,4 @@ export namespace ReconcilerBehavior {
     }
 }
 
-export type { ItemKind };
+export type { ItemKind, ItemWatch };

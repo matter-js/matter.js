@@ -5,10 +5,10 @@
  */
 
 import { ImplementationError } from "@matter/general";
-import type { CapacityInfo, ClientNode, ItemKind, ManagedItem } from "@matter/node";
+import type { CapacityInfo, ClientNode, ItemKind, ItemWatch, ManagedItem } from "@matter/node";
 import { GroupKeyManagementClient } from "@matter/node/behaviors/group-key-management";
 import { GroupsClient } from "@matter/node/behaviors/groups";
-import { GroupId, Status, StatusResponseError } from "@matter/types";
+import { EndpointNumber, GroupId, Status, StatusResponseError } from "@matter/types";
 import { PRIORITY_BANDS } from "./priority.js";
 
 export interface GroupMembershipGrant {
@@ -19,6 +19,15 @@ export interface GroupMembershipGrant {
 
 // GroupKeyManagement §4.16: MaxGroupsPerFabric is at least 4. Assume that floor if momentarily unread.
 const MIN_GROUPS_PER_FABRIC = 4;
+
+/**
+ * The one decision of whether `groupIdsOnEndpoint` include the intent's group. `verify` passes the groups
+ * `GetGroupMembership` returns for the endpoint, and `satisfiedBy` the groups of our fabric's cached group table
+ * entries that list the endpoint. The kind relies on both naming the same groups.
+ */
+function satisfies(groupIdsOnEndpoint: GroupId[], groupId: GroupId) {
+    return groupIdsOnEndpoint.includes(groupId);
+}
 
 /**
  * The `endpointGroupMembership` ItemKind: adds a peer endpoint to a Groups-cluster group. Per-endpoint
@@ -58,7 +67,39 @@ export class GroupMembershipItemKind implements ItemKind<GroupMembershipGrant> {
             return false;
         }
         const { groupList } = await this.#commands(node, localEndpoint).getGroupMembership({ groupList: [groupId] });
-        return groupList.includes(groupId);
+        return satisfies(groupList, groupId);
+    }
+
+    /**
+     * No watch when `maxGroupsPerFabric` is 0, which a node with the Groupcast (GCAST) feature reports: its groups are
+     * managed through the Groupcast cluster, and its group table is empty for a fabric that adopted Groupcast.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 11.2.6.2, § 11.2.6.3
+     */
+    watches(node: ClientNode): ItemWatch[] {
+        const groupKeyManagement = node.maybeStateOf(GroupKeyManagementClient);
+        if (groupKeyManagement === undefined || groupKeyManagement.maxGroupsPerFabric === 0) {
+            return [];
+        }
+        return [{ endpoint: node, behavior: GroupKeyManagementClient, attribute: "groupTable" }];
+    }
+
+    /**
+     * Judges the cached `groupTable` by the same match as `verify`. Cached entries carry the index the device gave
+     * our fabric, so only entries with {@link ClientNode.fabricIndexOnPeer} count. Without that index no entry counts,
+     * and the answer `false` leads to a live `verify`.
+     */
+    satisfiedBy(node: ClientNode, item: ManagedItem<GroupMembershipGrant>): boolean {
+        const { localEndpoint, groupId } = item.intent;
+        const groupTable = node.maybeStateOf(GroupKeyManagementClient)?.groupTable ?? [];
+        const groupIdsOnEndpoint = groupTable
+            .filter(
+                entry =>
+                    entry.fabricIndex === node.fabricIndexOnPeer &&
+                    entry.endpoints.includes(EndpointNumber(localEndpoint)),
+            )
+            .map(entry => entry.groupId);
+        return satisfies(groupIdsOnEndpoint, groupId);
     }
 
     async remove(node: ClientNode, item: ManagedItem<GroupMembershipGrant>): Promise<void> {

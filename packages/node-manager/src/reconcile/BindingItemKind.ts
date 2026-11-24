@@ -5,7 +5,7 @@
  */
 
 import { ImplementationError } from "@matter/general";
-import type { ClientNode, ItemKind, ManagedItem } from "@matter/node";
+import type { ClientNode, ItemKind, ItemWatch, ManagedItem } from "@matter/node";
 import { BindingClient } from "@matter/node/behaviors/binding";
 import { ClusterId, EndpointNumber, FabricIndex, GroupId, NodeId, Status } from "@matter/types";
 import { Binding } from "@matter/types/clusters/binding";
@@ -20,6 +20,14 @@ export interface BindingGrant {
 
 function targetsEqual(a: BindingGrant["target"], b: BindingGrant["target"]): boolean {
     return a.node === b.node && a.group === b.group && a.endpoint === b.endpoint && a.cluster === b.cluster;
+}
+
+/**
+ * The one decision of whether `targets` (all of our fabric) hold the intent's target; used by `verify`, `satisfiedBy`
+ * and `apply`.
+ */
+function satisfies(targets: Target[], target: BindingGrant["target"]) {
+    return targets.some(t => targetsEqual(t, target));
 }
 
 function toTarget(t: BindingGrant["target"]): Target {
@@ -55,7 +63,7 @@ export class BindingItemKind implements ItemKind<BindingGrant> {
             throw new ImplementationError(`Binding target endpoint ${localEndpoint} not present on peer`);
         }
         const current = await this.#readBinding(node, localEndpoint);
-        if (current.some(t => targetsEqual(t, target))) {
+        if (satisfies(current, target)) {
             return;
         }
         await this.#write(node, localEndpoint, [...current, toTarget(target)]);
@@ -66,8 +74,36 @@ export class BindingItemKind implements ItemKind<BindingGrant> {
         if (!node.endpoints.has(localEndpoint)) {
             return false;
         }
-        const current = await this.#readBinding(node, localEndpoint);
-        return current.some(t => targetsEqual(t, target));
+        return satisfies(await this.#readBinding(node, localEndpoint), target);
+    }
+
+    watches(node: ClientNode, item: ManagedItem<BindingGrant>): ItemWatch[] {
+        const { localEndpoint } = item.intent;
+        if (!node.endpoints.has(localEndpoint)) {
+            return [];
+        }
+        const endpoint = node.endpoints.for(localEndpoint);
+        if (!endpoint.behaviors.has(BindingClient)) {
+            return [];
+        }
+        return [{ endpoint, behavior: BindingClient, attribute: "binding" }];
+    }
+
+    /**
+     * Judges the cached `binding` by the same match as `verify`. Cached entries carry the index the device gave our
+     * fabric, so only entries with {@link ClientNode.fabricIndexOnPeer} count. Without that index no entry counts,
+     * and the answer `false` leads to a live `verify`.
+     */
+    satisfiedBy(node: ClientNode, item: ManagedItem<BindingGrant>): boolean {
+        const { localEndpoint, target } = item.intent;
+        if (!node.endpoints.has(localEndpoint)) {
+            return false;
+        }
+        const cached = node.endpoints.for(localEndpoint).maybeStateOf(BindingClient)?.binding ?? [];
+        return satisfies(
+            cached.filter(entry => entry.fabricIndex === node.fabricIndexOnPeer),
+            target,
+        );
     }
 
     async remove(node: ClientNode, item: ManagedItem<BindingGrant>): Promise<void> {
