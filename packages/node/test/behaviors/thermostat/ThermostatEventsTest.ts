@@ -158,7 +158,7 @@ function setTemperature(device: Endpoint<typeof BasicThermostat>, localTemperatu
 }
 
 describe("Thermostat events", () => {
-    MockForwardFeatures.enable("thermostat-events", "thermostat-msch");
+    MockForwardFeatures.enable("thermostat-events");
 
     before(() => MockTime.init());
 

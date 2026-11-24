@@ -92,7 +92,7 @@ export namespace Specification {
      *
      * Use only names that are already public, so the source does not disclose unreleased specification content.
      */
-    export type ForwardFeature = "pqc-phase-1" | "delay-report-data" | "thermostat-msch" | "thermostat-events";
+    export type ForwardFeature = "pqc-phase-1" | "delay-report-data" | "thermostat-events";
 
     /**
      * Whether a forward feature is active.  Tests enable one with `MockForwardFeatures.enable()` from

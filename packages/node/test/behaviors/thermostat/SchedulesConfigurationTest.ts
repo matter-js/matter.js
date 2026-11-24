@@ -8,7 +8,6 @@ import { ThermostatClient } from "#behaviors/thermostat";
 import { ThermostatDevice } from "#devices/thermostat";
 import { Endpoint } from "#endpoint/index.js";
 import { Environment, ImplementationError, MockStorageService, StorageService } from "@matter/general";
-import { Specification } from "@matter/model";
 import { MockServerNode, MockSite, subscribedPeer } from "@matter/node/testing";
 import { StatusResponse } from "@matter/types";
 import { Thermostat } from "@matter/types/clusters/thermostat";
@@ -42,24 +41,7 @@ async function startupRefusals(device: Endpoint) {
         .map(cause => cause.message);
 }
 
-describe("MatterScheduleConfiguration without the thermostat-msch forward feature", () => {
-    before(() => MockTime.init());
-
-    it("refuses to start", async function () {
-        if (Specification.ENABLE_FORWARD_MATTER_FEATURES) {
-            this.skip();
-        }
-
-        const refusals = await startupRefusals(schedulesEndpoint());
-
-        expect(refusals.length).equals(1);
-        expect(refusals[0]).contains('"thermostat-msch" forward feature');
-    });
-});
-
 describe("Schedules configuration", () => {
-    MockForwardFeatures.enable("thermostat-msch");
-
     before(() => MockTime.init());
 
     it("refuses to start with a configured schedule the write rules refuse", async () => {
