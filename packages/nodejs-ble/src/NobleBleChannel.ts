@@ -489,6 +489,8 @@ export class NobleBleCentralInterface implements Transport {
     }
 
     onData(listener: (socket: Channel<Bytes>, data: Bytes) => void): Transport.Listener {
+        // The BLE implementation keeps one interface, so a controller that goes online again reopens it here
+        this.#closed = false;
         this.#onMatterMessageListener = listener;
         return {
             close: async () => await this.close(),
