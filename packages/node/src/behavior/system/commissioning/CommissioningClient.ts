@@ -1276,8 +1276,13 @@ export namespace CommissioningClient {
         commissioningFlowImpl?: ClassExtends<ControllerCommissioningFlow>;
 
         /**
-         * Abort signal for cancellation.  With {@link ClientNode#commission} it cancels the PASE attempt.  With
-         * `peers.commission()` it cancels the whole discovery as `Discovery.Options.abort` describes.
+         * Cancels the commissioning until CommissioningComplete is sent: PASE, the commissioning steps and the
+         * operational CASE connection.  A cancel after PASE rejects with the abort reason once the device's fail-safe
+         * expiry was tried; a command the cancel interrupted may already have taken effect on the device.  After
+         * CommissioningComplete was sent the commissioning runs to its end.  A {@link finalizeCommissioning} callback
+         * does not receive the signal: a cancel before it starts stops the commissioning, and once it returned the
+         * commissioning counts as complete.  With `peers.commission()` the signal also cancels the discovery as
+         * `Discovery.Options.abort` describes.
          */
         abort?: AbortSignal;
 
@@ -1381,7 +1386,8 @@ export namespace CommissioningClient {
          * The flow runs PASE, arm-failsafe, CSR and AddNOC as usual, then invokes this hook **instead of** connecting
          * to the device operationally and sending "CommissioningComplete" itself, and awaits it. The hook owns the
          * finalization and must drive it to completion before resolving: resolve on success, throw on failure.
-         * `commission()` resolves or rejects with this hook's outcome — a throw rolls the commissioning back.
+         * `commission()` resolves or rejects with this hook's outcome — a throw rolls the commissioning back.  After a
+         * cancel through {@link abort}, a throw rejects with the abort reason instead.
          *
          * For a delegated/split flow, hand `address.nodeId`, `discoveryData` and `sessionParameters` (those the device
          * reported over PASE) to the controller that will finish (typically a separate, network-side controller sharing

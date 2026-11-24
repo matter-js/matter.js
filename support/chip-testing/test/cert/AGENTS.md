@@ -1324,9 +1324,9 @@ TH_SERVER needs and far below the 3-minute window, so an attempt that cannot rea
 in its controller log, before the script's own 90s wait. chip-tool cannot be bounded and says so.
 
 The evidence per attempt is one step with an accepted `"unverified"` check: the case starts the attempt, and the
-script's checks above, in `device-python.log`, decide. The case asserts no DUT-side refusal. A
-cancellable commissioning API would let the case end an attempt once the script has seen enough, instead of
-closing the controller.
+script's checks above, in `device-python.log`, decide. The case asserts no DUT-side refusal. On the matter.js
+controller, the `abort` option of `peers.commission()` could end an attempt once the script has seen enough; chip-tool
+and the matterjs-server WebSocket API cannot cancel a commissioning, so the case closes the controller on all of them.
 
 ## The write-path idiom (`writeAndCheck`, `TC-IDM-3.1`)
 
