@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { UnacknowledgedReportStatus } from "#interaction/InteractionMessenger.js";
+import type { ReportInterruption } from "#interaction/InteractionMessenger.js";
 import { Subscription } from "#interaction/Subscription.js";
 import { Diagnostic, Duration, Millis, Seconds, Timestamp } from "@matter/general";
 import type { SubscribeResponse } from "@matter/types";
@@ -59,45 +59,49 @@ export class PeerSubscription extends ClientSubscription {
 
     /**
      * Counts a report the peer started sending on this subscription.  Returns the number to pass to
-     * {@link reportStatusUnacknowledged} for that report.
+     * {@link reportInterrupted} for that report.
      */
     nextReportNumber() {
         return ++this.#reportsStarted;
     }
 
     /**
-     * Decides whether the subscription is lost because the peer did not acknowledge our status response to report
-     * number `reportNumber` (see {@link nextReportNumber}), and closes it if so.
+     * Decides whether the subscription is lost because report number `reportNumber` (see {@link nextReportNumber}) did
+     * not complete, and closes it if so.
      *
      * A publisher that receives no status response may end the subscription.  CHIP does
      * (`ReadHandler::OnResponseTimeout`); with persisted subscriptions it may resume it later.  matter.js keeps it
-     * until three reports in a row failed.  A close lets the owner replace the subscription before {@link timeout},
-     * which costs the priming report of the replacement even when the publisher kept the subscription:
+     * until three reports in a row failed.  A publisher that stops sending the chunks of a report keeps the
+     * subscription open, but its next chunk arrives on an exchange we already closed and so looks like the start of a
+     * new report: its first cluster would be stored incomplete under the cluster's new data version.  A close lets the
+     * owner replace the subscription before {@link timeout}, and the publisher's late chunks are then refused.  The
+     * replacement costs a priming report even when the publisher kept the subscription:
      *
-     * | Unacknowledged status | Priming of a replacement | Action                        |
-     * |-----------------------|--------------------------|-------------------------------|
-     * | `"chunk"`             | any                      | close, as a CHIP client does  |
-     * | `"final"`             | compact                  | close                         |
-     * | `"final"`             | full                     | keep; {@link timeout} decides |
+     * | Interruption             | Priming of a replacement | Action                        |
+     * |--------------------------|--------------------------|-------------------------------|
+     * | `"chunk-unacknowledged"` | any                      | close, as a CHIP client does  |
+     * | `"chunk-missing"`        | any                      | close                         |
+     * | `"final-unacknowledged"` | compact                  | close                         |
+     * | `"final-unacknowledged"` | full                     | keep; {@link timeout} decides |
      *
      * {@link Configuration.compactPriming} tells whether that priming is compact.  A subscription that is closed, or on
      * which a newer report started, is kept as it is.
      *
      * @see {@link MatterSpecification.v161.Core} § 8.5
      */
-    reportStatusUnacknowledged(reportNumber: number, status: UnacknowledgedReportStatus) {
+    reportInterrupted(reportNumber: number, interruption: ReportInterruption) {
         if (this.isClosed || reportNumber !== this.#reportsStarted) {
             this.logger.debug(
                 "Subscription",
                 Diagnostic.strong(Subscription.idStrOf(this.subscriptionId)),
                 "to peer",
                 this.peer.toString(),
-                "ignores an unacknowledged report status because it is closed or received a newer report",
+                "ignores an interrupted report because it is closed or received a newer report",
             );
             return;
         }
 
-        if (status === "final" && !this.#compactPriming) {
+        if (interruption === "final-unacknowledged" && !this.#compactPriming) {
             this.logger.debug(
                 "Subscription",
                 Diagnostic.strong(Subscription.idStrOf(this.subscriptionId)),
@@ -113,7 +117,9 @@ export class PeerSubscription extends ClientSubscription {
             Diagnostic.strong(Subscription.idStrOf(this.subscriptionId)),
             "to peer",
             this.peer.toString(),
-            "lost: peer did not acknowledge our status response to its report",
+            interruption === "chunk-missing"
+                ? "lost: peer did not send the next chunk of its report"
+                : "lost: peer did not acknowledge our status response to its report",
         );
 
         this.close();
