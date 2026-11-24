@@ -13,11 +13,14 @@ import {
     InternalError,
     MockFilesystem,
     MockStorageService,
+    RemoteActorContext,
     ServerNode,
     UnexpectedDataError,
 } from "@matter/main";
+import { WebRtcTransportRequestorServer } from "@matter/main/behaviors/web-rtc-transport-requestor";
+import { WebRtcTransportDefinitions } from "@matter/main/clusters";
 import { CameraControllerDevice } from "@matter/main/devices";
-import { DeviceAttestationCheck, FabricAuthority, FabricGroups } from "@matter/main/protocol";
+import { DeviceAttestationCheck, FabricAuthority, FabricGroups, ProtocolMocks } from "@matter/main/protocol";
 import { GroupId, NodeId, QrPairingCodeCodec, Status, StatusResponseError } from "@matter/main/types";
 import { Matter } from "@matter/model";
 import { PicsExpression, PicsFile, UnsupportedByControllerError } from "@matter/testing";
@@ -61,7 +64,6 @@ import {
     MATTERJS_CONTROLLER_PICS,
     NoCommissionedPeerError,
     SessionStateError,
-    WebRtcSessionPredictionError,
 } from "../../src/cert/InProcessControllerAdapter.js";
 import { MATTERJS_SERVER_CONTROLLER_PICS } from "../../src/cert/matter-server-controller-pics.js";
 import {
@@ -1239,7 +1241,7 @@ describe("InProcessWebRtcRequestorApi operations", () => {
     /** Records every invoke and answers an offer request with the next scripted session id. */
     class ScriptedProvider {
         readonly invoked = new Array<{ command: string; args?: object; endpoint?: number }>();
-        readonly minted = new Array<number>();
+        readonly allocated = new Array<number>();
         onInvoke?: (command: string) => Promise<void>;
 
         /** Answers an offer request with this instead of a scripted session id. */
@@ -1253,7 +1255,7 @@ describe("InProcessWebRtcRequestorApi operations", () => {
                     if (this.offerResponse !== undefined) {
                         return this.offerResponse;
                     }
-                    const webRtcSessionId = this.minted.shift();
+                    const webRtcSessionId = this.allocated.shift();
                     if (webRtcSessionId === undefined) {
                         throw new InternalError(`No session id scripted for ${command}`);
                     }
@@ -1299,27 +1301,29 @@ describe("InProcessWebRtcRequestorApi operations", () => {
         if (provider === undefined || other === undefined) {
             throw new InternalError("Scripted providers missing");
         }
-        return { provider, other, requestor };
+        /** Invokes Offer on the requestor as the provider node `peer`, the way its CASE session would. */
+        const offerFrom = async (peer: string, webRtcSessionId: number) => {
+            const session = new ProtocolMocks.NodeSession({ fabric, peerNodeId: NodeId(BigInt(peer)) });
+            const exchange = new ProtocolMocks.Exchange({ context: { session } });
+            await RemoteActorContext({ node, exchange, command: true }).act(context =>
+                endpoint.agentFor(context).get(WebRtcTransportRequestorServer).offer({ webRtcSessionId, sdp: "v=0" }),
+            );
+        };
+        return { provider, other, requestor, endpoint, offerFrom };
     }
 
     async function heldIds(requestor: InProcessWebRtcRequestorApi) {
         return (await requestor.sessions()).map(session => session.id);
     }
 
-    it("solicitOffer registers the predicted id before invoking", async function () {
+    it("solicitOffer registers the session the provider names", async function () {
         this.timeout(20_000);
 
         const { provider, requestor } = await requestorFor("webrtc-solicit");
-        provider.minted.push(0);
-        let heldDuringInvoke: readonly number[] | undefined;
-        provider.onInvoke = async () => {
-            heldDuringInvoke = await heldIds(requestor);
-        };
+        provider.allocated.push(3);
 
-        expect(await requestor.solicitOffer(OFFER)).to.equal(0);
+        expect(await requestor.solicitOffer(OFFER)).to.equal(3);
 
-        // The provider can signal before its response is processed
-        expect(heldDuringInvoke).to.deep.equal([0]);
         expect(provider.invoked).to.deep.equal([
             {
                 command: "solicitOffer",
@@ -1327,64 +1331,57 @@ describe("InProcessWebRtcRequestorApi operations", () => {
                 endpoint: 1,
             },
         ]);
-        expect(await requestor.sessions()).to.deep.equal([{ id: 0, videoStreamId: 42, audioStreamId: null }]);
+        expect(await requestor.sessions()).to.deep.equal([{ id: 3, videoStreamId: 42, audioStreamId: null }]);
     });
 
-    it("predicts the id after the last one the provider minted", async function () {
+    it("accepts the provider's offer that arrives before the response names its session", async function () {
         this.timeout(20_000);
 
-        const { provider, requestor } = await requestorFor("webrtc-predict");
-        provider.minted.push(0, 1);
-        await requestor.solicitOffer(OFFER);
-
-        let heldDuringInvoke: readonly number[] | undefined;
+        const { provider, requestor, endpoint, offerFrom } = await requestorFor("webrtc-early-offer");
+        provider.allocated.push(3);
+        let offerError: Promise<unknown> | undefined;
+        let heldDuringInvoke: boolean | undefined;
         provider.onInvoke = async () => {
-            heldDuringInvoke = await heldIds(requestor);
+            let settled = false;
+            offerError = (async () => {
+                try {
+                    await offerFrom(PROVIDER, 3);
+                    return undefined;
+                } catch (error) {
+                    return error;
+                } finally {
+                    settled = true;
+                }
+            })();
+            // A held signal observes the requestor's recheck while it waits
+            const { recheck } = endpoint.behaviors.internalsOf(WebRtcTransportRequestorServer);
+            for (let turn = 0; turn < 100 && !recheck.isObserved && !settled; turn++) {
+                await new Promise(resolve => setImmediate(resolve));
+            }
+            heldDuringInvoke = recheck.isObserved && !settled;
         };
-        expect(await requestor.provideOffer({ ...OFFER, sdp: "v=0 offer" })).to.equal(1);
 
-        expect(heldDuringInvoke).to.have.members([0, 1]);
-        expect(provider.invoked[1].args).to.deep.include({ webRtcSessionId: null, sdp: "v=0 offer" });
+        expect(await requestor.solicitOffer(OFFER)).to.equal(3);
+        expect(heldDuringInvoke).to.equal(true);
+        expect(await offerError).to.equal(undefined);
+
+        const signal = await requestor.nextSignal(s => s.kind === "offer", 5_000);
+        expect(signal).to.deep.include({ kind: "offer", sessionId: 3, outcome: "accepted" });
     });
 
-    it("throws naming both ids where the provider minted another", async function () {
+    it("provideOffer sends the offer and registers the session the provider names", async function () {
         this.timeout(20_000);
 
-        const { provider, requestor } = await requestorFor("webrtc-mismatch");
-        provider.minted.push(5);
+        const { provider, requestor } = await requestorFor("webrtc-provide");
+        provider.allocated.push(5);
 
-        await expect(requestor.solicitOffer(OFFER)).rejectedWith(
-            WebRtcSessionPredictionError,
-            /minted session 5 where 0 was registered/,
-        );
-        expect(await requestor.sessions()).to.deep.equal([]);
+        expect(await requestor.provideOffer({ ...OFFER, sdp: "v=0 offer" })).to.equal(5);
+
+        expect(provider.invoked[0].args).to.deep.include({ webRtcSessionId: null, sdp: "v=0 offer" });
+        expect(await heldIds(requestor)).to.deep.equal([5]);
     });
 
-    it("predicts one sequence per peer node, across its provider endpoints", async function () {
-        this.timeout(20_000);
-
-        const { provider, other, requestor } = await requestorFor("webrtc-per-node");
-        provider.minted.push(0, 1);
-        other.minted.push(0);
-
-        expect(await requestor.solicitOffer(OFFER)).to.equal(0);
-        expect(await requestor.solicitOffer({ ...OFFER, endpoint: 2 })).to.equal(1);
-        expect(await requestor.solicitOffer({ ...OFFER, peer: OTHER_PROVIDER })).to.equal(0);
-    });
-
-    it("predicts after the id the provider minted where the last prediction missed", async function () {
-        this.timeout(20_000);
-
-        const { provider, requestor } = await requestorFor("webrtc-after-mismatch");
-        provider.minted.push(5, 6);
-
-        await expect(requestor.solicitOffer(OFFER)).rejectedWith(WebRtcSessionPredictionError);
-
-        expect(await requestor.solicitOffer(OFFER)).to.equal(6);
-        expect(await heldIds(requestor)).to.deep.equal([6]);
-    });
-
-    it("holds no predicted session where the response names no session id", async function () {
+    it("holds no session where the response names no session id", async function () {
         this.timeout(20_000);
 
         const { provider, requestor } = await requestorFor("webrtc-no-id");
@@ -1394,18 +1391,45 @@ describe("InProcessWebRtcRequestorApi operations", () => {
         expect(await requestor.sessions()).to.deep.equal([]);
     });
 
-    it("establishes concurrent requests to one peer one at a time", async function () {
+    it("establishes concurrent requests to one peer", async function () {
         this.timeout(20_000);
 
         const { provider, requestor } = await requestorFor("webrtc-concurrent");
-        provider.minted.push(0, 1);
-        provider.onInvoke = () => new Promise(resolve => setTimeout(resolve, 20));
+        provider.allocated.push(0, 1);
+        let pending = 0;
+        let mostPending = 0;
+        provider.onInvoke = async () => {
+            mostPending = Math.max(mostPending, ++pending);
+            await new Promise(resolve => setTimeout(resolve, 20));
+            pending--;
+        };
 
-        expect(await Promise.all([requestor.solicitOffer(OFFER), requestor.solicitOffer(OFFER)])).to.deep.equal([0, 1]);
+        expect(await Promise.all([requestor.solicitOffer(OFFER), requestor.solicitOffer(OFFER)])).to.have.members([
+            0, 1,
+        ]);
         expect(await heldIds(requestor)).to.have.members([0, 1]);
+        expect(mostPending).to.equal(2);
     });
 
-    it("holds no predicted session where the provider refuses the request", async function () {
+    it("ends the provider's session where the requestor cannot register it", async function () {
+        this.timeout(20_000);
+
+        const { provider, requestor, endpoint } = await requestorFor("webrtc-unregistered");
+        provider.allocated.push(4);
+        endpoint.eventsOf(WebRtcTransportRequestorServer).currentSessions$Changing.on(() => {
+            throw new InternalError("registration refused");
+        });
+
+        await expect(requestor.solicitOffer(OFFER)).rejectedWith(/registration refused/);
+
+        expect(provider.invoked.map(({ command, args }) => ({ command, args }))[1]).to.deep.equal({
+            command: "endSession",
+            args: { webRtcSessionId: 4, reason: WebRtcTransportDefinitions.WebRtcEndReason.OutOfResources },
+        });
+        expect(await requestor.sessions()).to.deep.equal([]);
+    });
+
+    it("holds no session where the provider refuses the request", async function () {
         this.timeout(20_000);
 
         const { provider, requestor } = await requestorFor("webrtc-refused");
@@ -1421,7 +1445,7 @@ describe("InProcessWebRtcRequestorApi operations", () => {
         this.timeout(20_000);
 
         const { provider, requestor } = await requestorFor("webrtc-end");
-        provider.minted.push(0);
+        provider.allocated.push(0);
         const id = await requestor.solicitOffer(OFFER);
 
         await requestor.endSession(PROVIDER, 1, id, 2);

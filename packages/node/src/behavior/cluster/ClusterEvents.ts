@@ -84,9 +84,8 @@ export namespace ClusterEvents {
         infer C extends ClusterType.Component,
         ...infer R extends ClusterType.Component[],
     ]
-        ?
-              | (S extends C["flags"] ? (C extends { attributes: infer A } ? RequiredKeysOf<A> : never) : never)
-              | MandatoryAttrKeys<R, S>
+        ? | (S extends C["flags"] ? (C extends { attributes: infer A } ? RequiredKeysOf<A> : never) : never)
+          | MandatoryAttrKeys<R, S>
         : never;
 
     /**
@@ -96,9 +95,8 @@ export namespace ClusterEvents {
         infer C extends ClusterType.Component,
         ...infer R extends ClusterType.Component[],
     ]
-        ?
-              | (S extends C["flags"] ? (C extends { attributes: infer A } ? keyof A & string : never) : never)
-              | ApplicableAttrKeys<R, S>
+        ? | (S extends C["flags"] ? (C extends { attributes: infer A } ? keyof A & string : never) : never)
+          | ApplicableAttrKeys<R, S>
         : never;
 
     /**
