@@ -17,6 +17,7 @@ import {
     Millis,
     MockCrypto,
     Seconds,
+    Time,
 } from "@matter/general";
 import { MockServerNode, MockSite } from "@matter/node/testing";
 import {
@@ -219,6 +220,36 @@ describe("split commissioning", () => {
 
         expect(b.peers.commissioned).empty;
         expect(b.peers.size).equals(0);
+    });
+
+    it("completes when the hand-off outlasts the commissioning time limit", async () => {
+        await using site = new MockSite();
+
+        const a = await site.addController({ id: "controllerA", index: 1 });
+        const device = await site.addDevice({ index: 2 });
+
+        (a.env.get(Crypto) as MockCrypto).entropic = true;
+        (device.env.get(Crypto) as MockCrypto).entropic = true;
+
+        await a.start();
+
+        const { passcode, discriminator } = device.state.commissioning;
+        const node = await MockTime.resolve(
+            a.peers.commission({
+                passcode,
+                discriminator,
+                timeout: Seconds(90),
+                autoSubscribe: false,
+                autoStateInitialize: false,
+                // Longer than the 900 seconds the device allows as maximum cumulative failsafe time
+                finalizeCommissioning: async () => {
+                    await Time.sleep("hand-off", Seconds(905));
+                },
+            }),
+            { macrotasks: true },
+        );
+
+        expect(node.peerAddress).not.undefined;
     });
 
     it("throws CommissioningError and removes the peer when CommissioningComplete returns a non-Ok errorCode", async () => {

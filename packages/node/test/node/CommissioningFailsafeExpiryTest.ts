@@ -37,7 +37,11 @@ class RecordingGeneralCommissioningServer extends GeneralCommissioningServer {
  */
 interface Failure {
     error: Error;
-    step?: "GetInitialData" | "AccessControl" | "GeneralCommissioning.Complete";
+    step?:
+        | "GetInitialData"
+        | "AccessControl"
+        | "GeneralCommissioning.Complete"
+        | "OperationalCredentials.UpdateFabricLabel";
     closeSession?: boolean;
 }
 
@@ -182,13 +186,21 @@ describe("Commissioning failsafe expiry", () => {
         expect(armedAfterFailure).false;
     });
 
-    // Characterization: no expiry was sent before the commissioner armed the failsafe
-    it("sends no expiry before the commissioner armed the failsafe", async () => {
+    it("sends no expiry when a step fails after CommissioningComplete succeeded", async () => {
         await commissionWithFailingStep({
+            error: new InternalError("Simulated failure after CommissioningComplete (test)"),
+            step: "OperationalCredentials.UpdateFabricLabel",
+        });
+        expect(expiryRequests).equals(0);
+    });
+
+    it("ends the failsafe the device armed at PASE before the commissioner armed it", async () => {
+        const { armedAfterFailure } = await commissionWithFailingStep({
             error: new InternalError("Simulated failure before the failsafe was armed (test)"),
             step: "GetInitialData",
         });
-        expect(expiryRequests).equals(0);
+        expect(expiryRequests).equals(1);
+        expect(armedAfterFailure).false;
     });
 
     it("does not reconnect to end the failsafe after the operational session closed", async () => {
