@@ -16,6 +16,7 @@ import { NocsrValidator } from "#certificate/NocsrValidator.js";
 import { PeerMessageMissingError, PeerUnresponsiveError } from "#peer/PeerCommunicationError.js";
 import { OperationalDataset } from "#thread/OperationalDataset.js";
 import {
+    Abort,
     asError,
     Bytes,
     CanceledError,
@@ -149,6 +150,22 @@ export type ControllerCommissioningFlowOptions = {
          */
         onFailure?: DeviceAttestationValidator.OnAttestationFailure;
     };
+
+    /**
+     * Cancels commissioning until the flow starts sending CommissioningComplete or the custom operational step has
+     * returned.
+     *
+     * A cancel aborts the request in flight and runs no further step.  The flow then tries to expire the fail-safe
+     * without this signal, waiting at most 2 seconds for the answer, and rejects with the abort reason.  A command the
+     * cancel interrupts may already have taken effect on the device.  Once the flow starts sending
+     * CommissioningComplete, its response decides the outcome and the remaining steps run to the end.  The send waits
+     * for no exchange slot; only a CASE session that is gone by then is established first, and a cancel during that
+     * wait does not apply.  Callbacks the caller supplies, such as the attestation failure handler or the custom
+     * operational step, do not receive the signal.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 11.10.7.6
+     */
+    abort?: AbortSignal;
 };
 
 type AttestationDecision = { proceed: true } | { proceed: false; reason?: string };
@@ -299,6 +316,12 @@ const FAILSAFE_PROCESSING_MARGIN = Seconds(10);
 /** Most MRP send time counted into the wait for a response when sizing the failsafe. */
 const FAILSAFE_MAX_SEND_TIME = Seconds(10);
 
+/**
+ * How long a canceled commissioning waits for the device to answer the fail-safe expiry.  A device that does not answer
+ * in time ends its fail-safe itself when it expires.
+ */
+const CANCELED_EXPIRY_WAIT = Seconds(2);
+
 /** Devices may report very low scan/connect timeouts that are not enough in practice */
 const MIN_NETWORK_SCAN_TIMEOUT_SECONDS = 60;
 const MIN_NETWORK_CONNECT_TIMEOUT_SECONDS = 60;
@@ -328,6 +351,10 @@ export class ControllerCommissioningFlow {
     #defaultFailSafeTime = DEFAULT_FAILSAFE_TIME;
     #armFailsafeInterval?: Timer;
     #periodicArm?: Promise<unknown>;
+    /** The device arms the fail-safe itself when PASE is established, before our first ArmFailSafe. */
+    #failSafeMayBeArmed = true;
+    readonly #cancel: Abort;
+    #commitStarted = false;
 
     constructor(
         /** ClientInteraction for the initiated PASE session */
@@ -355,6 +382,7 @@ export class ControllerCommissioningFlow {
         this.commissioningOptions = commissioningOptions;
         logger.debug("Commissioning options", Diagnostic.dict(loggedOptionsOf(commissioningOptions)));
         this.#initializeCommissioningSteps();
+        this.#cancel = new Abort({ abort: commissioningOptions.abort });
     }
 
     async [Symbol.asyncDispose]() {
@@ -382,6 +410,7 @@ export class ControllerCommissioningFlow {
         for (const step of this.commissioningSteps) {
             logger.info(`Executing commissioning step ${step.stepNumber}.${step.subStepNumber}: ${step.name}`);
             try {
+                this.#requestAbort?.throwIfAborted();
                 if (
                     step.reArmFailsafe &&
                     !failSafeTimerReArmedAfterPreviousStep &&
@@ -393,6 +422,9 @@ export class ControllerCommissioningFlow {
                 failSafeTimerReArmedAfterPreviousStep = false;
                 const result = await step.stepLogic();
                 this.#setCommissioningStepResult(step, result);
+                if (result.code === CommissioningStepResultCode.Stop) {
+                    break;
+                }
 
                 if (this.#currentFailSafeEndTime !== undefined) {
                     if (this.#commissioningExpiryTime !== undefined && Time.nowMs > this.#commissioningExpiryTime) {
@@ -421,13 +453,10 @@ export class ControllerCommissioningFlow {
                         failSafeTimerReArmedAfterPreviousStep = await this.#reArmFailsafeBetweenSteps();
                     }
                 }
-
-                if (result.code === CommissioningStepResultCode.Stop) {
-                    break;
-                }
             } catch (e) {
                 const error = asError(e);
-                if (error instanceof RecoverableCommissioningError) {
+                const canceledBeforeCleanup = this.#requestAbort?.aborted === true;
+                if (!canceledBeforeCleanup && error instanceof RecoverableCommissioningError) {
                     logger.warn(
                         `Commissioning step ${step.stepNumber}.${step.subStepNumber}: ${step.name} failed with recoverable error:`,
                         Diagnostic.errorMessage(error),
@@ -437,7 +466,7 @@ export class ControllerCommissioningFlow {
                 }
 
                 const isCommissioningFailure = causedBy(error, CommissioningError, StatusResponseError);
-                if (isCommissioningFailure) {
+                if (!canceledBeforeCleanup && isCommissioningFailure) {
                     logger.warn(
                         `Commissioning step ${step.stepNumber}.${step.subStepNumber}: ${step.name} failed with error:`,
                         Diagnostic.errorMessage(error),
@@ -446,6 +475,16 @@ export class ControllerCommissioningFlow {
                 }
 
                 await this.#expireFailsafe(error);
+
+                // A cancel that arrived during the cleanup decides the outcome as well
+                const cancel = this.#requestAbort;
+                if (cancel?.aborted) {
+                    logger.info(
+                        `Commissioning step ${step.stepNumber}.${step.subStepNumber}: ${step.name} canceled:`,
+                        Diagnostic.errorMessage(error),
+                    );
+                    throw asError(cancel.reason);
+                }
 
                 if (isCommissioningFailure) {
                     StatusResponseError.accept(error);
@@ -472,7 +511,7 @@ export class ControllerCommissioningFlow {
             }
             attributeMap.set(`${endpointId}-${clusterId}-${attributeId}`, undefined);
         }
-        for await (const data of this.interaction.read(request)) {
+        for await (const data of this.#read(request)) {
             for await (const entry of data) {
                 if (entry.kind === "attr-status") {
                     logger.debug("Commissioning read returned status", entry.status, "for", entry.path);
@@ -502,9 +541,21 @@ export class ControllerCommissioningFlow {
     async #invokeCommand<const C extends ClusterType.Concrete>(
         request: Invoke.ConcreteCommandRequest<C>,
         options: Omit<Invoke.Definition, "commands"> = {},
-        transmission?: ClientRequest,
+        transmission: ClientRequest = { abort: this.#requestAbort },
     ) {
         return AdministratorCommands.invoke(this.interaction, request, options, transmission);
+    }
+
+    /** Read with the caller's cancel signal. */
+    #read(request: ClientRead) {
+        return this.interaction.read({ ...request, abort: this.#requestAbort });
+    }
+
+    /**
+     * The caller's cancel signal for requests and step boundaries, or `undefined` once CommissioningComplete is sent.
+     */
+    get #requestAbort(): AbortSignal | undefined {
+        return this.#commitStarted ? undefined : this.#cancel.signal;
     }
 
     /**
@@ -748,7 +799,7 @@ export class ControllerCommissioningFlow {
         this.collectedCommissioningData.productName = productName;
         this.collectedCommissioningData.supportsConcurrentConnection = supportsConcurrentConnection;
 
-        const networkData = this.interaction.read(
+        const networkData = this.#read(
             Read(
                 Read.Attribute({
                     cluster: NetworkCommissioning,
@@ -863,18 +914,16 @@ export class ControllerCommissioningFlow {
             ? Seconds(basicCommissioningInfo.maxCumulativeFailsafeSeconds)
             : this.#defaultFailSafeTime;
         const expiryLength = Duration.min(time ?? this.#defaultFailSafeTime, maxExpiry);
-        this.#ensureGeneralCommissioningSuccess(
-            "armFailSafe",
-            await this.#invokeCommand({
-                endpoint: RootEndpointNumber,
-                cluster: GeneralCommissioning,
-                command: "armFailSafe",
-                fields: {
-                    breadcrumb: this.lastBreadcrumb,
-                    expiryLengthSeconds: Seconds.of(expiryLength),
-                },
-            }),
-        );
+        const response = await this.#invokeCommand({
+            endpoint: RootEndpointNumber,
+            cluster: GeneralCommissioning,
+            command: "armFailSafe",
+            fields: {
+                breadcrumb: this.lastBreadcrumb,
+                expiryLengthSeconds: Seconds.of(expiryLength),
+            },
+        });
+        this.#ensureGeneralCommissioningSuccess("armFailSafe", response);
         this.#currentFailSafeEndTime = Timestamp(Time.nowMs + expiryLength);
         return {
             code: CommissioningStepResultCode.Success,
@@ -922,7 +971,11 @@ export class ControllerCommissioningFlow {
                         this.#periodicArm = this.#armFailsafe(
                             Duration.max(this.#defaultFailSafeTime, this.#failSafeTimeLeft),
                         ).catch(error => {
-                            logger.warn("Error while re-arming failsafe during reconnect", error);
+                            if (this.#requestAbort?.aborted) {
+                                logger.debug("Commissioning was canceled while re-arming the failsafe:", error);
+                            } else {
+                                logger.warn("Error while re-arming failsafe during reconnect", error);
+                            }
                             this.#armFailsafeInterval?.stop();
                             this.#armFailsafeInterval = undefined;
                         });
@@ -1086,11 +1139,14 @@ export class ControllerCommissioningFlow {
      * allows this: "Commissioners that need to restart from initial phase step 2 MAY immediately expire the fail-safe
      * by invoking the ArmFailSafe command with an ExpiryLengthSeconds field set to 0."
      *
-     * Stops the periodic re-arm, so it cannot arm the fail-safe again.  Sends nothing when the device stopped
-     * responding (see {@link #deviceStoppedResponding}).  Otherwise it waits for a re-arm already sent, then sends over
-     * the PASE session, or after the operational reconnect only over a session that exists now, so a device that
-     * dropped the session is not reconnected only to end its fail-safe.  A failure only logs: the device ends the
-     * fail-safe itself when it expires.
+     * Stops the periodic re-arm, so it cannot arm the fail-safe again.  Sends nothing once CommissioningComplete
+     * succeeded, or when the device stopped responding (see {@link #deviceStoppedResponding}).  The
+     * fail-safe counts as armed from the start, because the device arms it when PASE is established (step 6).
+     * Otherwise it waits for a re-arm already sent, then sends over the PASE session, or after the operational
+     * reconnect only over a session that exists now, so a device that dropped the session is not reconnected only to
+     * end its fail-safe.  After a cancel, also one that arrives while it waits, it waits at most
+     * {@link CANCELED_EXPIRY_WAIT} for the answer.  A failure only logs: the device ends the fail-safe itself when it
+     * expires.
      *
      * @see {@link MatterSpecification.v161.Core} § 5.5.1
      */
@@ -1098,13 +1154,23 @@ export class ControllerCommissioningFlow {
         this.#armFailsafeInterval?.stop();
         this.#armFailsafeInterval = undefined;
 
-        if (this.#currentFailSafeEndTime === undefined) return;
+        if (!this.#failSafeMayBeArmed) return;
         if (this.#deviceStoppedResponding(failure)) {
             logger.debug("Device stopped responding, leaving the failsafe to expire");
             return;
         }
 
         await this.#periodicArm;
+        using expiryWait = new Abort();
+        let canceledDeadline: Timer | undefined;
+        using _waitAfterCancel = new Abort({
+            abort: this.#requestAbort,
+            handler: () => {
+                canceledDeadline = Time.getTimer("Canceled failsafe expiry", CANCELED_EXPIRY_WAIT, () =>
+                    expiryWait.abort(),
+                ).start();
+            },
+        });
         try {
             this.#ensureGeneralCommissioningSuccess(
                 "armFailSafe",
@@ -1119,7 +1185,7 @@ export class ControllerCommissioningFlow {
                         },
                     },
                     {},
-                    { requireExistingSession: true },
+                    { requireExistingSession: true, abort: expiryWait.signal },
                 ),
             );
             this.#currentFailSafeEndTime = undefined;
@@ -1128,6 +1194,8 @@ export class ControllerCommissioningFlow {
                 "Could not end the failsafe, the device stays in commissioning until its failsafe expires:",
                 Diagnostic.errorMessage(asError(error)),
             );
+        } finally {
+            canceledDeadline?.stop();
         }
     }
 
@@ -1304,21 +1372,25 @@ export class ControllerCommissioningFlow {
         let baseError: Error | undefined;
         let dacPublicKey: ReturnType<typeof PublicKey> | undefined;
         try {
-            const result = await DeviceAttestationValidator.validate(
-                {
-                    crypto: this.fabric.crypto,
-                    dclCertificateService: attestation.dclCertificateService,
-                    attestationChallenge: attestation.challengeKey,
-                },
-                {
-                    dac: deviceAttestation,
-                    pai: productAttestation,
-                    attestationElements,
-                    attestationSignature,
-                    attestationNonce,
-                    vendorId: this.collectedCommissioningData.vendorId,
-                    productId: this.collectedCommissioningData.productId,
-                },
+            // The DCL lookups take no cancel signal, so only the wait for them can be canceled
+            const result = await Abort.attempt(
+                this.#requestAbort,
+                DeviceAttestationValidator.validate(
+                    {
+                        crypto: this.fabric.crypto,
+                        dclCertificateService: attestation.dclCertificateService,
+                        attestationChallenge: attestation.challengeKey,
+                    },
+                    {
+                        dac: deviceAttestation,
+                        pai: productAttestation,
+                        attestationElements,
+                        attestationSignature,
+                        attestationNonce,
+                        vendorId: this.collectedCommissioningData.vendorId,
+                        productId: this.collectedCommissioningData.productId,
+                    },
+                ),
             );
             findings = result.findings;
             dacPublicKey = result.dacPublicKey;
@@ -2101,6 +2173,7 @@ export class ControllerCommissioningFlow {
      * the commissioning process.
      */
     async #completeCommissioning() {
+        this.#commitStarted = true;
         this.#ensureGeneralCommissioningSuccess(
             "commissioningComplete",
             await this.#invokeCommand(
@@ -2112,9 +2185,12 @@ export class ControllerCommissioningFlow {
                 {
                     useExtendedFailSafeMessageResponseTimeout: true,
                 },
+                // The cancel no longer applies, so the send must not wait for a throttled exchange slot
+                { network: "unlimited" },
             ),
         );
         this.#currentFailSafeEndTime = undefined; // gets deactivated when successful
+        this.#failSafeMayBeArmed = false;
 
         return {
             code: CommissioningStepResultCode.Success,
@@ -2179,6 +2255,7 @@ export class ControllerCommissioningFlow {
 
     close() {
         this.#armFailsafeInterval?.stop();
+        this.#cancel.close();
     }
 }
 

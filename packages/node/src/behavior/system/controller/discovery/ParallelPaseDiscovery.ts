@@ -34,7 +34,8 @@ const CROSS_DEVICE_STAGGER_DELAY = Seconds(1);
  *
  * Subclasses override {@link onDiscovered} to launch their specific PASE-time action via
  * {@link registerAttempt}, providing:
- *  - a {@code factory} that creates the PASE attempt and accepts the {@code winOnPase} gate callback,
+ *  - a {@code factory} that creates the PASE attempt and accepts the {@code winOnPase} gate callback and the
+ *    attempt's own abort signal,
  *  - an {@code extractWinner} to pull the result value from the settled promise.
  *
  * Attempts are staggered: the first starts immediately, each subsequent one waits an additional
@@ -48,15 +49,12 @@ export abstract class ParallelPaseDiscovery<W> extends Discovery<W> {
     #abort = new AbortController();
     #winner?: W;
     #winnerAttempt?: Promise<unknown>;
+    #winnerAbort?: AbortController;
     #winnerError?: unknown;
     #extractWinner?: (result: unknown) => W | undefined;
     #attemptErrors = new Array<Error>();
     #attemptCount = 0;
     #startedCount = 0;
-
-    protected get abortSignal() {
-        return this.#abort.signal;
-    }
 
     protected get paseWon() {
         return this.#paseWon;
@@ -74,16 +72,26 @@ export abstract class ParallelPaseDiscovery<W> extends Discovery<W> {
      * @param factory Produces the attempt promise.  Receives a {@code winOnPase} callback that the implementation
      *   passes as the {@code continueXxx} option to the underlying PASE/commissioning call.  When invoked, it
      *   performs the race-gate logic and returns true if this attempt wins, false if the race is already decided:
-     *   another attempt won, or discovery ended or was interrupted.
+     *   another attempt won, or discovery ended or was interrupted.  Also receives the attempt's own abort signal,
+     *   which the implementation passes as the operation's {@code abort} option.  The signal fires for a loser when
+     *   the race is decided, and for the winner when the discovery is canceled.
      * @param extractWinner Extracts the winner value from the settled attempt result.  Called only for the
      *   winning attempt after its promise resolves.
      */
     protected registerAttempt<R>(
-        factory: (winOnPase: () => boolean) => R | PromiseLike<R>,
+        factory: (winOnPase: () => boolean, abort: AbortSignal) => R | PromiseLike<R>,
         extractWinner: (result: R) => W | undefined,
     ): void {
         let attempt!: Promise<R | undefined>;
         let isWinner = false;
+
+        const attemptAbort = new AbortController();
+        const abortLoser = () => {
+            if (!isWinner) {
+                attemptAbort.abort(this.#abort.signal.reason);
+            }
+        };
+        this.#abort.signal.addEventListener("abort", abortLoser);
 
         const winOnPase = () => {
             if (this.#abort.signal.aborted) {
@@ -91,6 +99,7 @@ export abstract class ParallelPaseDiscovery<W> extends Discovery<W> {
             }
             this.#paseWon = true;
             isWinner = true;
+            this.#winnerAbort = attemptAbort;
             this.stop();
             this.#abort.abort();
             this.#pending.delete(attempt);
@@ -104,7 +113,7 @@ export abstract class ParallelPaseDiscovery<W> extends Discovery<W> {
 
         const startFactory = () => {
             this.#startedCount++;
-            return factory(winOnPase);
+            return factory(winOnPase, attemptAbort.signal);
         };
 
         const startAfter = stagger > 0 ? Abort.sleep("PASE stagger", this.#abort.signal, stagger) : Promise.resolve();
@@ -144,6 +153,7 @@ export abstract class ParallelPaseDiscovery<W> extends Discovery<W> {
                 return undefined;
             })
             .finally(() => {
+                this.#abort.signal.removeEventListener("abort", abortLoser);
                 this.#pending.delete(attempt);
             });
 
@@ -162,8 +172,21 @@ export abstract class ParallelPaseDiscovery<W> extends Discovery<W> {
     }
 
     /**
-     * Before a candidate has won, an interruption aborts every attempt so none can win afterwards.  After the win the
-     * winner's operation is not interrupted, and the discovery completes with the winner or the winner's error.
+     * After a candidate has won, a cancel aborts the winner's operation, which then decides the outcome: the operation
+     * may still succeed if it can no longer be canceled.  Before the win, the cancel interrupts the discovery.
+     */
+    protected override onCancel(reason: Error) {
+        if (this.#winnerAbort !== undefined) {
+            logger.info(`${this} passes the cancel to the candidate that won PASE:`, reason);
+            this.#winnerAbort.abort(reason);
+            return;
+        }
+        super.onCancel(reason);
+    }
+
+    /**
+     * Before a candidate has won, an interruption aborts every attempt so none can win afterwards.  After the win only
+     * a failure of every scanner can interrupt, and the discovery completes with the winner or the winner's error.
      */
     protected override onInterrupt() {
         if (this.#paseWon) {

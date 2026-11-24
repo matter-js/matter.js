@@ -150,8 +150,13 @@ export interface LocatedNodeCommissioningOptions extends CommissioningOptions {
     timeout?: Duration;
 
     /**
-     * Abort signal for cancellation.  When fired during PASE establishment, cancels the attempt.
-     * In parallel commissioning scenarios this is used to cancel other candidates once one wins.
+     * Cancels the commissioning: PASE establishment, the commissioning steps and the operational CASE connection,
+     * until the flow starts sending CommissioningComplete (see {@link ControllerCommissioningFlowOptions.abort}).
+     * A cancel after PASE rejects with the abort reason once the flow has tried to expire the fail-safe and the PASE
+     * session is closed.  A cancel during PASE rejects with the abort reason too, or with the connection error once an
+     * address has failed.  A {@link finalizeCommissioning} callback does not receive the signal.  A cancel before it
+     * starts stops the commissioning; once it returned, the commissioning counts as complete; a throw after a cancel
+     * rejects with the abort reason.
      */
     abort?: AbortSignal;
 
@@ -163,9 +168,9 @@ export interface LocatedNodeCommissioningOptions extends CommissioningOptions {
      * closed and commissioning is skipped.
      *
      * This is the hook used by {@link CommissioningDiscovery} for multi-candidate parallel flows: the first
-     * candidate to establish PASE claims and returns its node ID (and signals the others via {@link abort} to
-     * stop).  Any candidate that establishes PASE after another has already won returns `undefined` here and
-     * cleans up.  In the single-device located-node path this callback is unnecessary; provide {@link nodeId}
+     * candidate to establish PASE claims and returns its node ID (and aborts the others through their own
+     * {@link abort} signals).  Any candidate that establishes PASE after another has already won returns `undefined`
+     * here and cleans up.  In the single-device located-node path this callback is unnecessary; provide {@link nodeId}
      * (or leave it undefined for an automatically assigned ID) instead.
      */
     claimNodeIdAfterPase?: () => MaybePromise<NodeId | undefined>;
@@ -571,8 +576,8 @@ export class ControllerCommissioner {
     }
 
     #validateCommissioningOptions(options: CommissioningOptions) {
-        // Nothing else bounds the post-PASE flow, and the device's failsafe expires regardless, so an unbounded budget
-        // could only wait for a commissioning the device has already rolled back.
+        // The device's failsafe expires regardless, so an unbounded budget could only wait for a commissioning the
+        // device has already rolled back.
         const { caseConnectionTimeout } = options;
         if (caseConnectionTimeout !== undefined && !Number.isFinite(caseConnectionTimeout)) {
             throw new ImplementationError(
@@ -735,6 +740,7 @@ export class ControllerCommissioner {
                 }
 
                 if (performCaseCommissioning !== undefined) {
+                    options.abort?.throwIfAborted();
                     await performCaseCommissioning(address, discoveryData, ephemeralSession.reportedParameters);
                     return;
                 }
@@ -745,6 +751,7 @@ export class ControllerCommissioner {
                 // transport decision (e.g. the TCP spec-version gate) has the device's spec version available.
                 peer.descriptor.reportedSessionParameters = ephemeralSession.reportedParameters;
                 await peer.connect({
+                    abort: options.abort,
                     connectionTimeout: caseConnectionTimeout,
                     timing: caseConnectionTiming,
 
