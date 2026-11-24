@@ -73,8 +73,6 @@ async function offCapableThermostat() {
 }
 
 describe("Schedules local write", () => {
-    MockForwardFeatures.enable("thermostat-msch");
-
     before(() => MockTime.init());
 
     it("stores a locally written schedule and generates a handle", async () => {

@@ -174,9 +174,6 @@ const schema = ThermostatBehaviorLogicBase.schema.extend({
  * * Setback: This feature is considered deprecated.
  * * The use of the "setpointHoldExpiryTimestamp" attribute is currently not supported.
  *
- * MatterScheduleConfiguration is implemented but not released yet. Enable it with the "thermostat-msch" forward feature
- * (see {@link Specification.isForwardFeatureEnabled}) for certification purposes only.
- *
  * Events is implemented but provisional in the Matter specification. Enable it with the "thermostat-events" forward
  * feature for certification purposes only. The server generates an event only when the Events feature is
  * selected and the event exists on {@link ThermostatBaseServer.Events}. The event exists when its feature conformance
@@ -263,11 +260,6 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         }
         if (this.features.setback) {
             throw new ImplementationError("Setback feature is deprecated and not allowed to be enabled");
-        }
-        if (this.features.matterScheduleConfiguration && !Specification.isForwardFeatureEnabled("thermostat-msch")) {
-            throw new ImplementationError(
-                `MatterScheduleConfiguration feature is not released yet. Enable it with the "thermostat-msch" forward feature for certification purposes only`,
-            );
         }
         if (this.features.events && !Specification.isForwardFeatureEnabled("thermostat-events")) {
             throw new ImplementationError(

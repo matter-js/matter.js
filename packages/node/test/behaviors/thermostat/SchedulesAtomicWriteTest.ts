@@ -93,8 +93,6 @@ function writeSchedules(ep1: Endpoint, schedules: Thermostat.Schedule[]) {
 }
 
 describe("Schedules atomic write", () => {
-    MockForwardFeatures.enable("thermostat-msch");
-
     before(() => {
         MockTime.init();
     });
