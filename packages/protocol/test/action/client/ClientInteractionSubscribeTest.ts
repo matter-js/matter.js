@@ -210,7 +210,7 @@ async function closesOnUnacknowledgedFinalStatus(options: Read.Options) {
         expect.fail("Expected a peer subscription");
     }
 
-    subscription.reportStatusUnacknowledged(subscription.nextReportNumber(), "final");
+    subscription.reportInterrupted(subscription.nextReportNumber(), "final-unacknowledged");
     const { isClosed } = subscription;
     await client.close();
     return isClosed;

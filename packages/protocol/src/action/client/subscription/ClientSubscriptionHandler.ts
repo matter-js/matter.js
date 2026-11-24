@@ -7,7 +7,6 @@
 import { ReadResult } from "#action/response/ReadResult.js";
 import { IncomingInteractionClientMessenger } from "#interaction/InteractionMessenger.js";
 import { Subscription } from "#interaction/Subscription.js";
-import { PeerAckMissingError } from "#peer/PeerCommunicationError.js";
 import { MessageExchange } from "#protocol/MessageExchange.js";
 import { ProtocolHandler } from "#protocol/ProtocolHandler.js";
 import { SecureSession } from "#session/SecureSession.js";
@@ -140,7 +139,8 @@ export class ClientSubscriptionHandler implements ProtocolHandler {
                 }
             }
         } catch (error) {
-            if (messenger.unacknowledgedReportStatus !== "chunk" || !causedBy(error, PeerAckMissingError)) {
+            const interruption = messenger.reportInterruption;
+            if (interruption !== "chunk-unacknowledged" && interruption !== "chunk-missing") {
                 throw error;
             }
         } finally {
@@ -148,12 +148,12 @@ export class ClientSubscriptionHandler implements ProtocolHandler {
             subscription.timeoutAt = undefined;
             this.#subscriptions.resetTimer();
             await messenger.close();
-            const unacknowledged = messenger.unacknowledgedReportStatus;
-            if (unacknowledged !== undefined) {
+            const interruption = messenger.reportInterruption;
+            if (interruption !== undefined) {
                 if (this.#subscriptions.isBlocked) {
-                    logger.debug(exchange.via, "Report status not acknowledged during shutdown");
+                    logger.debug(exchange.via, "Report interrupted during shutdown");
                 } else {
-                    subscription.reportStatusUnacknowledged(reportNumber, unacknowledged);
+                    subscription.reportInterrupted(reportNumber, interruption);
                 }
             }
         }

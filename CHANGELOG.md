@@ -216,6 +216,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A node sends its DNS-SD goodbyes when the runtime shuts down
     - Fix: The client stops its subscription timeout timer when its last peer subscription closes, so the timer no longer keeps the process running until it expires
     - Fix: A client subscription is replaced early when the peer does not acknowledge our status response to a report chunk, or to a final report while the replacement would prime compactly
+    - Fix: A client subscription is replaced when the peer stops sending the chunks of a report
     - Fix: Commissioning that stops on an unexpected error expires the device's fail-safe, so the device accepts a new commissioning attempt right away
     - Fix: `ClientInteraction.close()` closes only the subscriptions established through that interaction, no longer every subscription to the same peer
     - Fix: CASE sessions that matter.js initiates use the CATs from the peer's NOC for access checks
