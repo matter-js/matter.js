@@ -421,6 +421,18 @@ describe("NobleBleCentralInterface", () => {
             await central.close();
         });
 
+        it("opens channels again after it was closed and a listener registered again", async () => {
+            const peripheral = new FakePeripheral(p => p.completeConnect());
+            const central = centralInterfaceFor(peripheral);
+            await central.close();
+            central.onData(() => {});
+
+            await expect(central.openChannel(ADDRESS)).rejectedWith(
+                `Peripheral ${PERIPHERAL_ADDRESS} does not have the required Matter characteristics`,
+            );
+            await central.close();
+        });
+
         it("connects a peripheral a previous call left in the failed state", async () => {
             let failing = true;
             const peripheral = new FakePeripheral(p => (failing ? p.failConnect() : p.completeConnect()));

@@ -13,6 +13,7 @@ import { ReactNativeBleClient } from "./ReactNativeBleClient.js";
 export class ReactNativeBle extends Ble {
     private bleCentral: ReactNativeBleClient | undefined;
     #scanner?: BleScanner;
+    #centralInterface?: ReactNativeBleCentralInterface;
 
     constructor() {
         super();
@@ -22,7 +23,10 @@ export class ReactNativeBle extends Ble {
         if (this.bleCentral === undefined) {
             this.bleCentral = new ReactNativeBleClient();
         }
-        return new ReactNativeBleCentralInterface(this);
+        if (this.#centralInterface === undefined) {
+            this.#centralInterface = new ReactNativeBleCentralInterface(this);
+        }
+        return this.#centralInterface;
     }
 
     get scanner(): Scanner {
