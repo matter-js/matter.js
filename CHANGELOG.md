@@ -169,6 +169,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/nodejs
     - Fix: (@delu999) SQLite storage accepts overlapping transactions instead of failing with "Transaction is in progress", so concurrent node state writes are no longer lost
 
+- @matter/nodejs-ble
+    - Fix: The BLE transport opens channels again after the controller went offline and online
+
 - @matter/nodejs-shell
     - Enhancement: Event logs show the absolute time of events a device reported with a delta timestamp
     - Fix: Migrating legacy storage no longer fails on a peer whose stored discovery TTL is invalid
@@ -276,6 +279,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/react-native
     - Fix: `openChannel()` of the BLE transport honors the abort signal and disconnects when the channel setup fails
     - Fix: `ReactNativeBle.centralInterface` returns the same interface on every access, so the controller removes it again when it goes offline
+    - Fix: The BLE transport opens channels again after the controller went offline and online
 
 - @matter/testing
     - Feature: `ControllerAdapterOptions.sustainedSubscription` keeps the controller's own subscription to each commissioned node, set for a `certTest()` that declares `sustained-subscription`; `step()` refuses that capability
