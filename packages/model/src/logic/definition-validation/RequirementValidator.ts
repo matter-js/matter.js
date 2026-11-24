@@ -11,7 +11,7 @@ import { RequirementResolver } from "../RequirementResolver.js";
 import { ModelValidator } from "./ModelValidator.js";
 
 ModelValidator.validators[RequirementElement.Tag] = class RequirementValidator extends (
-    ModelValidator<RequirementModel>
+    (ModelValidator<RequirementModel>)
 ) {
     override validate() {
         this.validateStructure(false, RequirementModel, RequirementModel, FieldModel);

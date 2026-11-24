@@ -9,7 +9,7 @@ import { SemanticNamespaceModel, SemanticTagModel } from "../../models/index.js"
 import { ModelValidator } from "./ModelValidator.js";
 
 ModelValidator.validators[SemanticNamespaceElement.Tag] = class SemanticNamespaceValidator extends (
-    ModelValidator<SemanticNamespaceModel>
+    (ModelValidator<SemanticNamespaceModel>)
 ) {
     override validate() {
         this.validateStructure(true, SemanticTagModel);
