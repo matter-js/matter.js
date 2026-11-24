@@ -135,25 +135,26 @@ export async function CommissioningConnection(
 
         const p: Promise<CommissioningConnection.Result | null> = options
             .establishSession(candidate.address, candidate.device, { signal, onPbkdfParamResponse })
-            .then(session => {
+            .then(async session => {
                 // deviceAc fired ⇒ this device was dropped for invalid credentials, so a late success on
                 // another of its addresses must not win.
                 if (winner !== undefined || abort.aborted || deviceAc.signal.aborted) {
                     // Close this session so we don't leak a PASE channel.  A credential drop fires only
                     // deviceAc (not the outer abort), so use the composed signal's reason — abort.reason
-                    // would be empty and lose the real cause.
-                    session
-                        .initiateForceClose({
+                    // would be empty and lose the real cause.  Settling after the close leaves no open session
+                    // behind once the caller sees the result.
+                    try {
+                        await session.initiateForceClose({
                             cause: asError(
                                 signal.reason ??
                                     new CommissioningError(
                                         "PASE session lost the race to another commissioning candidate",
                                     ),
                             ),
-                        })
-                        .catch(e => {
-                            logger.warn("Error closing losing PASE session:", asError(e));
                         });
+                    } catch (e) {
+                        logger.warn("Error closing losing PASE session:", asError(e));
+                    }
                     return null;
                 }
                 winner = { session, discoveryData: candidate.device };

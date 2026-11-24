@@ -280,6 +280,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A commissioning that fails before the commissioner armed the fail-safe ends the fail-safe the device armed when PASE was established
     - Fix: After a `finalizeCommissioning` callback completed the commissioning, the flow no longer re-arms the fail-safe or checks the commissioning time limit
     - Fix: (@cwedgwood) After a BUSY response, no address of the peer sends a new Sigma1 before the minimum wait the peer requested has passed
+    - Fix: A PASE connection attempt without a winner rejects only after it closed a PASE session that completed late, so no PASE channel stays open after the rejection
 
 - @matter/testing
     - Feature: `ControllerAdapterOptions.sustainedSubscription` keeps the controller's own subscription to each commissioned node, set for a `certTest()` that declares `sustained-subscription`; `step()` refuses that capability
