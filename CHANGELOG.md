@@ -177,6 +177,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Command and attribute write values may leave out optional struct or list fields and set nullable struct or list values to null, and `null` or a list given for a struct is refused with a clear error
 
 - @matter/protocol
+    - Fix: (@cwedgwood) After a BUSY response, no address of the peer sends a new Sigma1 before the minimum wait the peer requested has passed
     - Feature: `ControllerCommissioner.updateOperationalCertificate()` and `OperationalCertificateUpdate.update()` replace a peer's operational certificate with one for a new key pair
     - Feature: `NocsrValidator` validates a CSRResponse and throws `NocsrError` when a check fails
     - Enhancement: `ClientRequest.requireExistingSession` makes an interaction with a peer fail with `SessionClosedError` when the peer has no active session, instead of establishing one
