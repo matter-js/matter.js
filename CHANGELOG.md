@@ -273,6 +273,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `DatatypeError` messages show the first 60 characters of a long value instead of the characters after them
     - Fix: `Fabric.setLabel()` and `FabricBuilder.setLabel()` check the 32-byte limit in UTF-8 bytes instead of characters
     - Fix: `FabricManager` shortens a stored fabric label over 32 UTF-8 bytes on load with a warning
+    - Fix: (@cwedgwood) After a BUSY response, no address of the peer sends a new Sigma1 before the minimum wait the peer requested has passed
 
 - @matter/testing
     - Feature: `ControllerAdapterOptions.sustainedSubscription` keeps the controller's own subscription to each commissioned node, set for a `certTest()` that declares `sustained-subscription`; `step()` refuses that capability
