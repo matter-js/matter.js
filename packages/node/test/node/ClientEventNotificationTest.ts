@@ -1055,6 +1055,117 @@ describe("Client Event Notification", () => {
             expect(restartedPeer.stateOf(NetworkClient).maxEventNumber).equals(observed[0]);
         });
 
+        it("emits an event that arrives before its cluster's data once the read installed the cluster", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+            const peer = await subscribedPeer(controller, "peer1");
+            const structure = clientStructureOf(peer);
+            const root = EndpointNumber(0);
+            expect(structure.clusterFor(root, Switch.id)).undefined;
+
+            const clusterInstalledAtEmit = new Array<boolean>();
+            const emitter = structure.eventEmitter;
+            structure.eventEmitter = async () => {
+                clusterInstalledAtEmit.push(structure.clusterFor(root, Switch.id) !== undefined);
+            };
+            try {
+                function switchValue(attributeId: number, value: unknown): ReadResult.AttributeValue {
+                    return {
+                        kind: "attr-value",
+                        path: { endpointId: root, clusterId: Switch.id, attributeId: AttributeId(attributeId) },
+                        value,
+                        version: 1,
+                        tlv: TlvAny,
+                    };
+                }
+
+                async function* changes(): ReadResult {
+                    yield [
+                        {
+                            kind: "event-value",
+                            path: { endpointId: root, clusterId: Switch.id, eventId: EventId(1) },
+                            number: EventNumber(300),
+                            timestamp: 300,
+                            priority: Priority.Info,
+                            value: { newPosition: 1 },
+                            tlv: TlvAny,
+                        },
+                    ];
+                    yield [
+                        switchValue(0, 2),
+                        switchValue(1, 0),
+                        switchValue(0xfffc, 0),
+                        switchValue(0xfffd, 2),
+                        switchValue(0xfffb, [0, 1, 0xfffc, 0xfffd, 0xfffb, 0xfff9, 0xfff8]),
+                        switchValue(0xfff9, []),
+                        switchValue(0xfff8, []),
+                    ];
+                }
+                await MockTime.resolve(
+                    (async () => {
+                        for await (const _chunk of structure.mutate(
+                            Read({ attributes: [{}], events: [{}] }),
+                            changes(),
+                            {
+                                emitEvents: true,
+                            },
+                        ));
+                    })(),
+                );
+
+                expect(clusterInstalledAtEmit).deep.equals([true]);
+            } finally {
+                structure.eventEmitter = emitter;
+            }
+        });
+
+        it("emits the events of a read in the order the device sent them when an earlier one is delayed", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+            const peer = await subscribedPeer(controller, "peer1");
+            const structure = clientStructureOf(peer);
+            const root = EndpointNumber(0);
+
+            const emitted = new Array<EventNumber>();
+            const emitter = structure.eventEmitter;
+            structure.eventEmitter = async occurrence => {
+                emitted.push(occurrence.number);
+            };
+            try {
+                function event(clusterId: ClusterId, number: number): ReadResult.EventValue {
+                    return {
+                        kind: "event-value",
+                        path: { endpointId: root, clusterId, eventId: EventId(0) },
+                        number: EventNumber(number),
+                        timestamp: number,
+                        priority: Priority.Critical,
+                        value: {},
+                        tlv: TlvAny,
+                    };
+                }
+
+                // The first event's cluster is not on the endpoint, the second one's is
+                async function* changes(): ReadResult {
+                    yield [event(Switch.id, 10), event(BasicInformationClient.cluster.id, 11)];
+                }
+                await MockTime.resolve(
+                    (async () => {
+                        for await (const _chunk of structure.mutate(
+                            Read({ attributes: [{}], events: [{}] }),
+                            changes(),
+                            {
+                                emitEvents: true,
+                            },
+                        ));
+                    })(),
+                );
+
+                expect(emitted).deep.equals([EventNumber(10), EventNumber(11)]);
+            } finally {
+                structure.eventEmitter = emitter;
+            }
+        });
+
         describe("of concurrent interactions", () => {
             function onOffValue(): ReadResult.AttributeValue {
                 return {
@@ -1070,14 +1181,19 @@ describe("Client Event Notification", () => {
                 };
             }
 
+            /** A BasicInformation StartUp event, a cluster the peer's root endpoint has. */
             function eventOn(endpointId: number, number: number): ReadResult.EventValue {
                 return {
                     kind: "event-value",
-                    path: { endpointId: EndpointNumber(endpointId), clusterId: Switch.id, eventId: EventId(1) },
+                    path: {
+                        endpointId: EndpointNumber(endpointId),
+                        clusterId: BasicInformationClient.cluster.id,
+                        eventId: EventId(0),
+                    },
                     number: EventNumber(number),
                     timestamp: number,
-                    priority: Priority.Info,
-                    value: { newPosition: 1 },
+                    priority: Priority.Critical,
+                    value: { softwareVersion: 1 },
                     tlv: TlvAny,
                 };
             }

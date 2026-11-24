@@ -1506,12 +1506,17 @@ for (const method of [
     "clearYearDaySchedule",
     "setHolidaySchedule",
     "clearHolidaySchedule",
+    "getWeekDaySchedule",
+    "getYearDaySchedule",
+    "getHolidaySchedule",
+    "clearCredential",
+    "getCredentialStatus",
 ]) {
     Supervision(DoorLockBaseServer, method).onValidationError = throwInvalidCommand;
 }
 
-// Pattern 2: get*Schedule commands do their own range checks and return a status response rather than
-// throwing — skip constraint validation on the index fields so the handler receives the raw value
+// Pattern 2: get*Schedule commands answer an index outside the supported range with a status in their response — skip
+// constraint validation on the index fields so the handler receives the raw value
 for (const fieldName of ["weekDayIndex", "userIndex"]) {
     Supervision(DoorLockBaseServer, "getWeekDaySchedule", fieldName).constraint = false;
 }

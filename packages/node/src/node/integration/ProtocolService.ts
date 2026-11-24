@@ -51,7 +51,15 @@ import type {
     InteractionSession,
     NodeProtocol,
 } from "@matter/protocol";
-import { EventTypeProtocol, FabricManager, hasRemoteActor, Mark, OccurrenceManager, Val } from "@matter/protocol";
+import {
+    EventTypeProtocol,
+    FabricManager,
+    hasRemoteActor,
+    Mark,
+    OccurrenceManager,
+    UnknownEnumValueError,
+    Val,
+} from "@matter/protocol";
 import {
     AttributeId,
     AttributePath,
@@ -329,7 +337,7 @@ class ClusterState implements ClusterProtocol {
     readonly #datasource: Datasource;
     readonly #endpointId: EndpointNumber;
     readonly commands: Record<CommandId, CommandInvokeHandler> = {};
-    readonly skipCommandValidation?: boolean;
+    readonly modelValidatedCommands = new Set<CommandId>();
 
     constructor(type: ClusterTypeProtocol, backing: BehaviorBacking) {
         this.type = type;
@@ -342,9 +350,8 @@ class ClusterState implements ClusterProtocol {
         }
 
         for (const cmd of type.commands) {
-            if (maybeConfigOfConstructor(backing.type.prototype, camelize(cmd.name))) {
-                this.skipCommandValidation = true;
-                break;
+            if (maybeConfigOfConstructor(backing.type.prototype, camelize(cmd.name))?.supervision?.onValidationError) {
+                this.modelValidatedCommands.add(cmd.id);
             }
         }
     }
@@ -607,20 +614,19 @@ function validateCommandPayload(
     session: InteractionSession,
     outerResolve?: (name: string) => Val,
     config?: Supervision.Config,
+    errors?: Error[],
 ) {
-    if (data === undefined) {
-        return;
-    }
-
     const validate = supervisor.get(model).validate;
     if (!validate) {
         return;
     }
 
-    validate(data, session as ValueSupervisor.Session, {
+    // A request without command fields is an empty struct, so its mandatory fields are reported missing
+    validate(data ?? {}, session as ValueSupervisor.Session, {
         path: new DataModelPath(model.path),
         outerResolve,
         config,
+        errors,
     });
 }
 
@@ -666,6 +672,8 @@ function invokeCommand(
     const onValidationError = commandInputConfig?.supervision?.onValidationError;
 
     if (commandModels) {
+        // All errors, so that an error that only gets a warning does not hide an undefined enum value
+        const errors = new Array<Error>();
         try {
             validateCommandPayload(
                 request,
@@ -674,12 +682,24 @@ function invokeCommand(
                 session,
                 undefined,
                 commandInputConfig,
+                errors,
             );
         } catch (e) {
+            errors.push(asError(e));
+        }
+
+        if (errors.length) {
+            const undefinedEnumValue = errors.find(e => e instanceof UnknownEnumValueError);
             if (onValidationError) {
-                onValidationError(asError(e));
+                onValidationError(errors[0]);
+            } else if (undefinedEnumValue) {
+                throw undefinedEnumValue;
             } else {
-                logger.warn("Request validation error for", command.name, Diagnostic.errorMessage(asError(e)));
+                logger.warn(
+                    "Request validation error for",
+                    command.name,
+                    ...errors.map(e => Diagnostic.errorMessage(e)),
+                );
             }
         }
     }

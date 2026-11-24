@@ -4,9 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InteractionClientMessenger, MessageType } from "#interaction/InteractionMessenger.js";
+import {
+    IncomingInteractionClientMessenger,
+    InteractionClientMessenger,
+    MessageType,
+} from "#interaction/InteractionMessenger.js";
+import { PeerMessageMissingError } from "#peer/PeerCommunicationError.js";
 import { ExchangeReceiveOptions, ExchangeSendOptions, MessageExchange } from "#protocol/MessageExchange.js";
-import { AbortedError, Bytes, DataReadQueue, MatterFlowError } from "@matter/general";
+import { AbortedError, Bytes, DataReadQueue, MatterFlowError, Seconds } from "@matter/general";
 import { Specification } from "@matter/model";
 import {
     AttributeData,
@@ -801,6 +806,47 @@ describe("InteractionClientMessenger", () => {
 
             await expect(messenger.sendWriteCommand(writeRequest(writes))).rejectedWith(ReceivedStatusResponseError);
             expect(received.length).equals(2);
+        });
+    });
+
+    describe("reportInterruption", () => {
+        /** An exchange that delivers {@link chunks} and then fails to receive as on a receive timeout. */
+        function stallingExchange(chunks: number) {
+            const messages = Array.from({ length: chunks }, () => ({
+                packetHeader: {},
+                payloadHeader: { messageType: MessageType.ReportData },
+                payload: TlvDataReport.encode({
+                    interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
+                    subscriptionId: 1,
+                    moreChunkedMessages: true,
+                }),
+            }));
+            return {
+                via: "test",
+                send: async () => {},
+                nextMessage: async () =>
+                    messages.shift() ??
+                    Promise.reject(new AbortedError(undefined, { cause: new PeerMessageMissingError(Seconds(35)) })),
+                close: async () => {},
+            } as unknown as MessageExchange;
+        }
+
+        async function interruptionAfter(chunks: number) {
+            const messenger = new IncomingInteractionClientMessenger(stallingExchange(chunks));
+            await expect(
+                (async () => {
+                    for await (const _report of messenger.readDataReports());
+                })(),
+            ).rejectedWith(AbortedError);
+            return messenger.reportInterruption;
+        }
+
+        it("records a missing chunk when the next chunk of a report does not arrive", async () => {
+            expect(await interruptionAfter(1)).equals("chunk-missing");
+        });
+
+        it("records no interruption when no report arrives", async () => {
+            expect(await interruptionAfter(0)).undefined;
         });
     });
 });

@@ -233,8 +233,6 @@ async function createNodeFor(device: Endpoint, privilege = AccessControl.AccessC
 }
 
 describe("AtomicWriteHandler", () => {
-    MockForwardFeatures.enable("thermostat-msch");
-
     it("rejects a second BeginWrite on the same cluster/endpoint with INVALID_IN_STATE (§7.15.6.4.1)", async () => {
         const { node, fabric, device } = await createNode();
 

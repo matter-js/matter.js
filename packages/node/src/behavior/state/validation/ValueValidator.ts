@@ -15,7 +15,14 @@ import {
     Metatype,
     ValueModel,
 } from "@matter/model";
-import { ConformanceError, DatatypeError, hasLocalActor, SchemaImplementationError, Val } from "@matter/protocol";
+import {
+    ConformanceError,
+    DatatypeError,
+    hasLocalActor,
+    SchemaImplementationError,
+    UnknownEnumValueError,
+    Val,
+} from "@matter/protocol";
 import { BitmapEncodedValue, FabricIndex, Status } from "@matter/types";
 import { RootSupervisor } from "../../supervision/RootSupervisor.js";
 import { maybeConfigOf } from "../../supervision/SupervisionConfig.js";
@@ -148,6 +155,10 @@ function createNullValidator(
     return nextValidator;
 }
 
+/**
+ * Validates an enum value.  A value the enum does not define is refused with {@link UnknownEnumValueError}; this is the
+ * only check for it, as the conformance validation only checks the conformance of defined values.
+ */
 function createEnumValidator(schema: ValueModel, supervisor: RootSupervisor): ValueSupervisor.Validate | undefined {
     // A value of an enumerated type is its effective ID, which is its position among its siblings where the
     // definition states none, or lies in the range of a range member
@@ -157,10 +168,16 @@ function createEnumValidator(schema: ValueModel, supervisor: RootSupervisor): Va
 
     const constraintValidator = createConstraintValidator(schema.effectiveConstraint, schema, supervisor);
 
+    // An enum without members, such as OnOff OffWithEffect.EffectVariant, has its values defined outside the enum
+    const definesValues = members.length > 0;
+
     return (value, session, location) => {
         assertNumber(value, location);
-        if (!valid.has(value) && !ranges.some(range => range.constraint.test(value))) {
-            throw new DatatypeError(location, "defined in enum", value, Status.ConstraintError);
+        if (definesValues && !valid.has(value) && !ranges.some(range => range.constraint.test(value))) {
+            throw new UnknownEnumValueError(
+                location,
+                `Matter does not define the enum value ${value} for ${schema.name}`,
+            );
         }
 
         constraintValidator?.(value, session, location);
@@ -402,7 +419,11 @@ function createStructValidator(schema: Schema, supervisor: RootSupervisor): Valu
 
             sublocation.path.id = name;
             sublocation.config = config?.readonlyChild?.(name);
-            validate(value, session, sublocation);
+            try {
+                validate(value, session, sublocation);
+            } catch (e) {
+                ValidationLocation.reject(sublocation, e);
+            }
         }
 
         for (const name in sublocation.choices) {
@@ -461,7 +482,11 @@ function createListValidator(schema: ValueModel, supervisor: RootSupervisor): Va
                     if (e !== undefined && e !== null) {
                         sublocation.path.id = index;
                         sublocation.config = location.config?.readonlyChild?.(index) ?? entryConfig;
-                        entryValidator(e, session, sublocation);
+                        try {
+                            entryValidator(e, session, sublocation);
+                        } catch (error) {
+                            ValidationLocation.reject(sublocation, error);
+                        }
                     }
 
                     index++;
@@ -474,7 +499,11 @@ function createListValidator(schema: ValueModel, supervisor: RootSupervisor): Va
 
     return (value, session, location) => {
         assertArray(value, location);
-        validateConstraint?.(value, session, location);
+        try {
+            validateConstraint?.(value, session, location);
+        } catch (e) {
+            ValidationLocation.reject(location, e);
+        }
         validateEntries?.(value, session, location);
     };
 }

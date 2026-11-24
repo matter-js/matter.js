@@ -43,7 +43,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/node
     - Feature: (@RaHehl) `ZoneManagementServer` implements the zone and trigger commands and refuses requests the specification does not allow
-    - Feature: (@lboue) `ThermostatServer` implements the `MatterScheduleConfiguration` (MSCH) feature with the `Schedules` and `ActiveScheduleHandle` attributes, atomic writes and `SetActiveScheduleRequest`; enable the feature with the `thermostat-msch` forward feature for certification purposes only
+    - Feature: (@lboue) `ThermostatServer` implements the `MatterScheduleConfiguration` (MSCH) feature with the `Schedules` and `ActiveScheduleHandle` attributes, atomic writes and `SetActiveScheduleRequest`
     - Feature: `ThermostatServer` generates the Thermostat events when the provisional `Events` feature is selected and the events are switched on with `enable()`; enable the feature with the `thermostat-events` forward feature for certification purposes only
     - Feature: `ThermostatServer` implements the `ThermostatSuggestions` (TSUGGEST) feature
     - Feature: `ClientNode.updateOperationalCertificate()` replaces a commissioned node's operational certificate with one for a new key pair (UpdateNOC)
@@ -89,10 +89,13 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: A ClientNode reads its root's PartsList as listing every endpoint, whatever device types the root reports
     - Adjustment: `ServerSubscriptionContext.initiateExchange()` takes only a `Session`, no longer a `PeerAddress`
     - Adjustment: `SessionsBehavior` events `opened` and `closed` no longer fire for a session whose handshake fails
+    - Fix: A client emits an event that arrives before the data of its cluster in the same read, instead of dropping it as an event of an unsupported cluster
     - Fix: `ThermostatServer` keeps the preset that the application activates with `setActivePresetRequest`
+    - Fix: `ThermostatServer` treats `ControlSequenceOfOperation` CoolingWithReheat as the sequence without heating, instead of CoolingAndHeatingWithReheat, and automatic mode management in Auto turns the running mode off instead of failing when the sequence does not allow heating or cooling
     - Fix: `ThermostatServer` raises `NumberOfPresets` at startup to cover the stored presets, instead of failing to start after a configuration lowered it
     - Fix: `ScenesManagementServer` limits each fabric's remaining scene capacity by the Scene Table entries other fabrics use, refuses AddScene, StoreScene and CopyScene with RESOURCE_EXHAUSTED when the table is full, and updates the other fabrics' `FabricSceneInfo` when one fabric changes the table
     - Fix: `ScenesManagementServer` removes the scenes of a removed fabric, which stayed in the Scene Table and used up Scene Table entries for good; scenes left by earlier removals are removed at startup
+    - Fix: An Invoke Request with SuppressResponse set gets no Invoke Response, also when a command returns response data
     - Fix: The OTA provider offers the consented version instead of a lower stored one
     - Fix: The OTA provider no longer delegates the user consent to a node with `LocalConfigDisabled` set
     - Fix: The OTA provider accepts the apply of an image it offered under that update token, unless the consent for its version was removed
@@ -155,6 +158,12 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `GroupsServer` checks the AddGroup group name length in UTF-8 bytes
     - Fix: `ScenesManagementServer` answers AddScene with CONSTRAINT_ERROR for a scene name over 16 UTF-8 bytes
     - Fix: `GeneralDiagnosticsServer` shortens network interface names to 32 UTF-8 bytes instead of 32 characters
+    - Fix: A device refuses a command request with an enum value the enum does not define with CONSTRAINT_ERROR instead of logging a warning and running the command
+    - Fix: Only a command with a `Supervision` `onValidationError` skips the TLV validation of its request, instead of every command of a cluster in which one command has `Supervision` configuration
+    - Fix: A request without command fields is validated against the data model as an empty struct
+    - Fix: `IdentifyServer` reports the default EffectVariant for a TriggerEffect variant the enum does not define
+    - Fix: `DoorLockServer` answers a GetWeekDaySchedule, GetYearDaySchedule, GetHolidaySchedule, ClearCredential or GetCredentialStatus request that fails validation with INVALID_COMMAND
+    - Fix: Validation accepts every value of an enum that defines no values, such as OnOff OffWithEffect.EffectVariant
 
 - @matter/nodejs
     - Fix: (@delu999) SQLite storage accepts overlapping transactions instead of failing with "Transaction is in progress", so concurrent node state writes are no longer lost
@@ -164,6 +173,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Migrating legacy storage no longer fails on a peer whose stored discovery TTL is invalid
     - Fix: `config fabricLabel set` checks the 32-byte limit in UTF-8 bytes instead of characters
     - Fix: A stored controller fabric label over 32 UTF-8 bytes is shortened on start with a warning
+    - Fix: Command and attribute write values may leave out optional struct or list fields and set nullable struct or list values to null, and `null` or a list given for a struct is refused with a clear error
 
 - @matter/protocol
     - Feature: `ControllerCommissioner.updateOperationalCertificate()` and `OperationalCertificateUpdate.update()` replace a peer's operational certificate with one for a new key pair
@@ -204,10 +214,12 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: The mDNS responder logs failed sends and sends that reach only some address families once per outage of an interface as a notice, then at debug level
     - Adjustment: A decoded certificate subject or issuer is frozen; build a changed copy instead of changing it in place
     - Adjustment: Encoding a subject or issuer built in code throws `ImplementationError` for a property that is not a DN attribute
+    - Fix: A device closes its commissioning window after 20 failed commissioning attempts, counting abandoned commissionings whose fail-safe ends as well as failed PASE pairings
     - Fix: An ICD advertises SAI in its operational DNS-SD record, and SII while it operates as SIT, also when the value equals the MRP default, as the specification requires
     - Fix: A node sends its DNS-SD goodbyes when the runtime shuts down
     - Fix: The client stops its subscription timeout timer when its last peer subscription closes, so the timer no longer keeps the process running until it expires
     - Fix: A client subscription is replaced early when the peer does not acknowledge our status response to a report chunk, or to a final report while the replacement would prime compactly
+    - Fix: A client subscription is replaced when the peer stops sending the chunks of a report
     - Fix: Commissioning that stops on an unexpected error expires the device's fail-safe, so the device accepts a new commissioning attempt right away
     - Fix: `ClientInteraction.close()` closes only the subscriptions established through that interaction, no longer every subscription to the same peer
     - Fix: CASE sessions that matter.js initiates use the CATs from the peer's NOC for access checks

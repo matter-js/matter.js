@@ -38,6 +38,7 @@ import { StatusResponse } from "@matter/types";
 import { OccupancySensing } from "@matter/types/clusters/occupancy-sensing";
 import { Thermostat } from "@matter/types/clusters/thermostat";
 import { AtomicWriteHandler } from "./AtomicWriteHandler.js";
+import { ControlSequence } from "./ControlSequence.js";
 import { ThermostatBehavior } from "./ThermostatBehavior.js";
 
 const logger = Logger.get("ThermostatServer");
@@ -173,9 +174,6 @@ const schema = ThermostatBehaviorLogicBase.schema.extend({
  * * Setback: This feature is considered deprecated.
  * * The use of the "setpointHoldExpiryTimestamp" attribute is currently not supported.
  *
- * MatterScheduleConfiguration is implemented but not released yet. Enable it with the "thermostat-msch" forward feature
- * (see {@link Specification.isForwardFeatureEnabled}) for certification purposes only.
- *
  * Events is implemented but provisional in the Matter specification. Enable it with the "thermostat-events" forward
  * feature for certification purposes only. The server generates an event only when the Events feature is
  * selected and the event exists on {@link ThermostatBaseServer.Events}. The event exists when its feature conformance
@@ -262,11 +260,6 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         }
         if (this.features.setback) {
             throw new ImplementationError("Setback feature is deprecated and not allowed to be enabled");
-        }
-        if (this.features.matterScheduleConfiguration && !Specification.isForwardFeatureEnabled("thermostat-msch")) {
-            throw new ImplementationError(
-                `MatterScheduleConfiguration feature is not released yet. Enable it with the "thermostat-msch" forward feature for certification purposes only`,
-            );
         }
         if (this.features.events && !Specification.isForwardFeatureEnabled("thermostat-events")) {
             throw new ImplementationError(
@@ -904,24 +897,12 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
 
     /** Whether heating is allowed in the current ControlSequenceOfOperation and features */
     protected get heatingAllowed() {
-        return (
-            this.features.heating &&
-            ![
-                Thermostat.ControlSequenceOfOperation.CoolingOnly,
-                Thermostat.ControlSequenceOfOperation.CoolingAndHeatingWithReheat,
-            ].includes(this.internal.controlSequenceOfOperation)
-        );
+        return ControlSequence.allowsHeating(this.features, this.internal.controlSequenceOfOperation);
     }
 
     /** Whether cooling is allowed in the current ControlSequenceOfOperation and features */
     protected get coolingAllowed() {
-        return (
-            this.features.cooling &&
-            ![
-                Thermostat.ControlSequenceOfOperation.HeatingOnly,
-                Thermostat.ControlSequenceOfOperation.HeatingWithReheat,
-            ].includes(this.internal.controlSequenceOfOperation)
-        );
+        return ControlSequence.allowsCooling(this.features, this.internal.controlSequenceOfOperation);
     }
 
     /**
@@ -1117,19 +1098,8 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
     }
 
     #assertThermostatRunningModeChanging(newRunningMode: Thermostat.ThermostatRunningMode) {
-        const forbiddenRunningModes = new Array<Thermostat.ThermostatRunningMode>();
         // We use the internal value here to ensure not a temporarily invalid state during writes
-        switch (this.internal.controlSequenceOfOperation) {
-            case Thermostat.ControlSequenceOfOperation.CoolingOnly:
-            case Thermostat.ControlSequenceOfOperation.CoolingAndHeatingWithReheat:
-                forbiddenRunningModes.push(Thermostat.ThermostatRunningMode.Heat);
-                break;
-            case Thermostat.ControlSequenceOfOperation.HeatingOnly:
-            case Thermostat.ControlSequenceOfOperation.HeatingWithReheat:
-                forbiddenRunningModes.push(Thermostat.ThermostatRunningMode.Cool);
-                break;
-        }
-        if (forbiddenRunningModes.includes(newRunningMode)) {
+        if (!ControlSequence.allowsRunningMode(this.internal.controlSequenceOfOperation, newRunningMode)) {
             throw new StatusResponse.ConstraintErrorError(
                 `ThermostatRunningMode ${Thermostat.ThermostatRunningMode[newRunningMode]} is not allowed with ControlSequenceOfOperation ${
                     Thermostat.ControlSequenceOfOperation[this.internal.controlSequenceOfOperation]
@@ -1139,18 +1109,7 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
     }
 
     #assertSystemModeChanging(newMode: Thermostat.SystemMode) {
-        const forbiddenModes = new Array<Thermostat.SystemMode>();
-        switch (this.internal.controlSequenceOfOperation) {
-            case Thermostat.ControlSequenceOfOperation.CoolingOnly:
-            case Thermostat.ControlSequenceOfOperation.CoolingAndHeatingWithReheat:
-                forbiddenModes.push(Thermostat.SystemMode.Heat, Thermostat.SystemMode.EmergencyHeat);
-                break;
-            case Thermostat.ControlSequenceOfOperation.HeatingOnly:
-            case Thermostat.ControlSequenceOfOperation.HeatingWithReheat:
-                forbiddenModes.push(Thermostat.SystemMode.Cool, Thermostat.SystemMode.Precooling);
-                break;
-        }
-        if (forbiddenModes.includes(newMode)) {
+        if (!ControlSequence.allowsSystemMode(this.internal.controlSequenceOfOperation, newMode)) {
             throw new StatusResponse.ConstraintErrorError(
                 `SystemMode ${Thermostat.SystemMode[newMode]} is not allowed with ControlSequenceOfOperation ${
                     Thermostat.ControlSequenceOfOperation[this.internal.controlSequenceOfOperation]
@@ -1766,16 +1725,12 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
                 break;
 
             case Thermostat.SystemMode.Auto:
-                switch (consideration) {
-                    case "belowTarget":
-                        this.adjustRunningMode(Thermostat.ThermostatRunningMode.Heat);
-                        break;
-                    case "aboveTarget":
-                        this.adjustRunningMode(Thermostat.ThermostatRunningMode.Cool);
-                        break;
-                    default:
-                        this.adjustRunningMode(Thermostat.ThermostatRunningMode.Off);
-                        break;
+                if (consideration === "belowTarget" && this.heatingAllowed) {
+                    this.adjustRunningMode(Thermostat.ThermostatRunningMode.Heat);
+                } else if (consideration === "aboveTarget" && this.coolingAllowed) {
+                    this.adjustRunningMode(Thermostat.ThermostatRunningMode.Cool);
+                } else {
+                    this.adjustRunningMode(Thermostat.ThermostatRunningMode.Off);
                 }
                 break;
         }

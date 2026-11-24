@@ -813,7 +813,6 @@ describe("ChipToolControllerAdapter", function () {
                     value: true,
                 },
             ],
-            status: 1,
         });
 
         expect(await node.readAttribute({ endpoint: 1, cluster: ON_OFF.id, attribute: ON_OFF_ATTRIBUTE.id })).equal(
@@ -2002,6 +2001,22 @@ describe("ChipToolControllerAdapter", function () {
             expect(fake.commands).deep.equal([`any read-event-by-id 0x28 0x0 ${ref} 0`]);
         });
 
+        it("returns no event of another path a subscription report put into the read's reply", async () => {
+            const { node } = await commissioned();
+            const updates = new Array<unknown>();
+            const otherPath = { ...EVENT_PATH, endpoint: 1 };
+            fake.reply = () => ({ results: [] });
+            await node.subscribeEvents([otherPath], { ...INTERVALS, onUpdate: report => updates.push(report) });
+            await waitFor(() => fake.armings.length === 1, "the adapter to park a report frame");
+
+            fake.reply = () => ({ results: [{ ...event(5, 2), endpointId: 1 }, event(4, 1)] });
+
+            expect((await node.readEvents([EVENT_PATH])).map(({ eventNumber }) => eventNumber)).deep.equal([4n]);
+            expect(updates).length(1);
+            await delay(50);
+            expect(adapter?.log.lines.some(line => line.text.includes("Unattributed"))).equal(false);
+        });
+
         it("wildcards every path segment the caller left out", async () => {
             const { ref, node } = await commissioned();
 
@@ -2361,6 +2376,133 @@ describe("ChipToolControllerAdapter", function () {
             expect(await node.readAttribute(VENDOR_ID_PATH)).equal(0xfff1);
 
             expect(updates).deep.equal([false]);
+            await delay(50);
+            expect(adapter?.log.lines.some(line => line.text.includes("Unattributed"))).equal(false);
+        });
+
+        it("hands a read's value of a subscribed path to onUpdate as well, since it may be a report", async () => {
+            const { node } = await commissioned();
+            const updates = new Array<unknown>();
+            fake.reply = () => ({ results: [report(1, true)] });
+            await node.subscribe(PATH, { ...INTERVALS, onUpdate: value => updates.push(value) });
+            await waitFor(() => fake.armings.length === 1, "the adapter to park a report frame");
+
+            fake.reply = () => ({ results: [report(1, false)] });
+            expect(await node.readAttribute(PATH)).equal(false);
+
+            expect(updates).deep.equal([false]);
+        });
+
+        describe("a report in the reply of a command that asked about other paths", () => {
+            /** A live subscription of PATH, whose next report is a status rather than a value. */
+            async function subscribedToFailingReport() {
+                const { ref, node } = await commissioned();
+                fake.reply = () => ({ results: [report(1, true)] });
+                await node.subscribe(PATH, INTERVALS);
+                await waitFor(() => fake.armings.length === 1, "the adapter to park a report frame");
+                fake.reply = () => ({
+                    results: [
+                        {
+                            clusterId: ON_OFF.id,
+                            endpointId: 1,
+                            attributeId: requireId(ON_OFF_ATTRIBUTE.id, "onOff"),
+                            error: "UNSUPPORTED_ATTRIBUTE",
+                        },
+                    ],
+                });
+                return { ref, node };
+            }
+
+            it("is no failure of an invoke", async () => {
+                const { node } = await subscribedToFailingReport();
+
+                expect(await node.invoke("OnOff", "on", {}, 1)).equal(undefined);
+            });
+
+            it("is no failure of a command checked for success alone", async () => {
+                const { node } = await subscribedToFailingReport();
+
+                await node.decommission();
+            });
+
+            it("is logged when it is a status, which no subscription takes", async () => {
+                const { node } = await subscribedToFailingReport();
+
+                await node.invoke("OnOff", "on", {}, 1);
+
+                await waitFor(
+                    () => adapter?.log.lines.some(line => line.text.includes("Unattributed")) === true,
+                    "the report to reach the controller log",
+                );
+                const line = adapter?.log.lines.find(candidate => candidate.text.includes("Unattributed"))?.text;
+                expect(line).contains("UNSUPPORTED_ATTRIBUTE");
+            });
+
+            it("is logged as unusable where it cannot be decoded, without failing the command", async () => {
+                const { node } = await commissioned();
+                const eventWithoutNumber = {
+                    clusterId: BASIC_INFORMATION.id,
+                    endpointId: 0,
+                    eventId: requireId(START_UP.id, "startUp"),
+                    value: { softwareVersion: 1 },
+                };
+                fake.reply = () => ({ results: [eventWithoutNumber, vendorIdValue()] });
+
+                expect(await node.readAttribute(VENDOR_ID_PATH)).equal(0xfff1);
+
+                await waitFor(
+                    () => adapter?.log.lines.some(line => line.text.includes("Unusable chip-tool result")) === true,
+                    "the undecodable report to reach the controller log",
+                );
+            });
+
+            it("is no entry of a read's result", async () => {
+                const { node } = await commissioned();
+                const updates = new Array<unknown>();
+                fake.reply = () => ({ results: [report(1, true)] });
+                await node.subscribe(PATH, { ...INTERVALS, onUpdate: value => updates.push(value) });
+                await waitFor(() => fake.armings.length === 1, "the adapter to park a report frame");
+
+                fake.reply = () => ({ results: [report(1, false), vendorIdValue()] });
+                expect(await node.readAttributes([VENDOR_ID_PATH])).deep.equal([
+                    { ...VENDOR_ID_PATH, value: 0xfff1, version: undefined },
+                ]);
+                expect(updates).deep.equal([false]);
+            });
+
+            it("is no entry of a subscribe's priming values", async () => {
+                const { node } = await commissioned();
+                const updates = new Array<unknown>();
+                fake.reply = () => ({ results: [report(1, true)] });
+                await node.subscribe(PATH, { ...INTERVALS, onUpdate: value => updates.push(value) });
+                await waitFor(() => fake.armings.length === 1, "the adapter to park a report frame");
+
+                fake.reply = () => ({ results: [report(1, false), vendorIdValue()] });
+                expect(await node.subscribeAttributes([VENDOR_ID_PATH], INTERVALS)).deep.equal([
+                    { ...VENDOR_ID_PATH, value: 0xfff1, version: undefined },
+                ]);
+                expect(updates).deep.equal([false]);
+            });
+
+            it("is no account of the command's failure, even on a path no subscription covers", async () => {
+                const { node } = await commissioned();
+
+                // Each chip-tool command sets only its own exit status, so another path's status says nothing about
+                // why this read exited non-zero
+                fake.reply = () => ({
+                    results: [
+                        {
+                            clusterId: ON_OFF.id,
+                            endpointId: 2,
+                            attributeId: requireId(ON_OFF_ATTRIBUTE.id, "onOff"),
+                            error: "UNSUPPORTED_ATTRIBUTE",
+                        },
+                    ],
+                    status: 1,
+                });
+
+                expect(await rejectionOf(node.readAttribute(VENDOR_ID_PATH))).instanceOf(ChipToolCommandError);
+            });
         });
 
         it("parks nothing, and claims nothing, for a subscribe that never established", async () => {

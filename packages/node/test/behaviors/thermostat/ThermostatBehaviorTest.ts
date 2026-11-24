@@ -8,7 +8,16 @@ import { ThermostatBehavior, ThermostatServer } from "#behaviors/thermostat";
 import { ThermostatDevice } from "#devices/thermostat";
 import { Endpoint } from "#endpoint/index.js";
 import { Bytes, ImplementationError, MatterAggregateError } from "@matter/general";
-import { MockServerNode } from "@matter/node/testing";
+import { interaction, MockServerNode } from "@matter/node/testing";
+import {
+    ClusterId,
+    CommandId,
+    EndpointNumber,
+    Status,
+    TlvInvokeResponseData,
+    TlvOfModel,
+    TypeFromSchema,
+} from "@matter/types";
 import { Thermostat } from "@matter/types/clusters/thermostat";
 import { newPreset, PresetsThermostat, thermostatConfig } from "./preset-helpers.js";
 
@@ -22,7 +31,7 @@ const USER_LIMITS = {
     maxCoolSetpointLimit: 3200,
 };
 
-async function createAutoThermo(overrides: Record<string, number> = {}, { userLimits = true } = {}) {
+async function createAutoThermo(overrides: Record<string, number | boolean> = {}, { userLimits = true } = {}) {
     const device = new Endpoint(AutoThermoDevice, {
         number: 1,
         thermostat: {
@@ -229,6 +238,95 @@ describe("ThermostatBehavior", () => {
         });
     });
 
+    describe("ControlSequenceOfOperation", () => {
+        const { CoolingWithReheat, HeatingWithReheat, CoolingAndHeatingWithReheat } =
+            Thermostat.ControlSequenceOfOperation;
+
+        it("refuses heating modes with CoolingWithReheat", async () => {
+            const { node, device } = await createAutoThermo({ controlSequenceOfOperation: CoolingWithReheat });
+
+            await expect(device.set({ thermostat: { systemMode: Thermostat.SystemMode.Heat } })).rejectedWith(
+                "SystemMode Heat is not allowed with ControlSequenceOfOperation CoolingWithReheat",
+            );
+            await expect(device.set({ thermostat: { systemMode: Thermostat.SystemMode.EmergencyHeat } })).rejectedWith(
+                "SystemMode EmergencyHeat is not allowed with ControlSequenceOfOperation CoolingWithReheat",
+            );
+            await expect(
+                device.set({ thermostat: { thermostatRunningMode: Thermostat.ThermostatRunningMode.Heat } }),
+            ).rejectedWith(
+                "ThermostatRunningMode Heat is not allowed with ControlSequenceOfOperation CoolingWithReheat",
+            );
+
+            await node.close();
+        });
+
+        it("refuses cooling modes with HeatingWithReheat", async () => {
+            const { node, device } = await createAutoThermo({ controlSequenceOfOperation: HeatingWithReheat });
+
+            await expect(device.set({ thermostat: { systemMode: Thermostat.SystemMode.Precooling } })).rejectedWith(
+                "SystemMode Precooling is not allowed with ControlSequenceOfOperation HeatingWithReheat",
+            );
+            await expect(
+                device.set({ thermostat: { thermostatRunningMode: Thermostat.ThermostatRunningMode.Cool } }),
+            ).rejectedWith(
+                "ThermostatRunningMode Cool is not allowed with ControlSequenceOfOperation HeatingWithReheat",
+            );
+
+            await node.close();
+        });
+
+        it("accepts heating modes with CoolingAndHeatingWithReheat", async () => {
+            const { node, device } = await createAutoThermo({
+                controlSequenceOfOperation: CoolingAndHeatingWithReheat,
+            });
+
+            await device.set({ thermostat: { thermostatRunningMode: Thermostat.ThermostatRunningMode.Heat } });
+            expect(device.state.thermostat.thermostatRunningMode).equals(Thermostat.ThermostatRunningMode.Heat);
+
+            await device.set({ thermostat: { systemMode: Thermostat.SystemMode.EmergencyHeat } });
+            expect(device.state.thermostat.systemMode).equals(Thermostat.SystemMode.EmergencyHeat);
+
+            await node.close();
+        });
+
+        it("starts heating below the target with CoolingAndHeatingWithReheat and automatic mode management", async () => {
+            const { node, device } = await createAutoThermo({
+                controlSequenceOfOperation: CoolingAndHeatingWithReheat,
+                useAutomaticModeManagement: true,
+            });
+
+            await device.set({ thermostat: { externalMeasuredIndoorTemperature: 1500 } });
+
+            expect(device.state.thermostat.thermostatRunningMode).equals(Thermostat.ThermostatRunningMode.Heat);
+
+            await node.close();
+        });
+
+        it("starts and stays off below the target in Auto with CoolingWithReheat and automatic mode management", async () => {
+            const { node, device } = await createAutoThermo({
+                controlSequenceOfOperation: CoolingWithReheat,
+                useAutomaticModeManagement: true,
+                externalMeasuredIndoorTemperature: 1500,
+            });
+
+            expect(device.state.thermostat.thermostatRunningMode).equals(Thermostat.ThermostatRunningMode.Off);
+
+            await node.close();
+        });
+
+        it("starts and stays off above the target in Auto with HeatingWithReheat and automatic mode management", async () => {
+            const { node, device } = await createAutoThermo({
+                controlSequenceOfOperation: HeatingWithReheat,
+                useAutomaticModeManagement: true,
+                externalMeasuredIndoorTemperature: 3000,
+            });
+
+            expect(device.state.thermostat.thermostatRunningMode).equals(Thermostat.ThermostatRunningMode.Off);
+
+            await node.close();
+        });
+    });
+
     describe("limit validation", () => {
         it("rejects an absolute limit change that leaves a user limit outside", async () => {
             const { node, device } = await createAutoThermo();
@@ -386,6 +484,48 @@ describe("ThermostatBehavior", () => {
             expect(occupiedCoolingSetpoint - occupiedHeatingSetpoint).greaterThanOrEqual(200);
 
             await node.close();
+        });
+    });
+
+    describe("SetpointRaiseLower through the interaction layer", () => {
+        async function raiseLowerOnCoolingThermostat(mode: number) {
+            const device = new Endpoint(ThermostatDevice.with(ThermostatServer.with("Cooling")), {
+                number: 1,
+                thermostat: {
+                    controlSequenceOfOperation: Thermostat.ControlSequenceOfOperation.CoolingOnly,
+                    systemMode: Thermostat.SystemMode.Cool,
+                },
+            });
+            await using node = await MockServerNode.createOnline(undefined, { device });
+            const command = Thermostat.schema.commands.require("SetpointRaiseLower");
+
+            let response: TypeFromSchema<typeof TlvInvokeResponseData> | undefined;
+            await interaction.invoke(
+                node,
+                await node.addFabric(),
+                {
+                    commandPath: {
+                        endpointId: EndpointNumber(1),
+                        clusterId: ClusterId(Thermostat.id),
+                        commandId: CommandId(command.id),
+                    },
+                    commandFields: TlvOfModel(command).encodeTlv({ mode, amount: 5 }),
+                },
+                r => {
+                    response = r;
+                },
+            );
+            return response?.status?.status.status;
+        }
+
+        it("leaves refusing Heat without the Heating feature to the handler, with INVALID_COMMAND", async () => {
+            expect(await raiseLowerOnCoolingThermostat(Thermostat.SetpointRaiseLowerMode.Heat)).equals(
+                Status.InvalidCommand,
+            );
+        });
+
+        it("refuses a mode the enum does not define with CONSTRAINT_ERROR", async () => {
+            expect(await raiseLowerOnCoolingThermostat(3)).equals(Status.ConstraintError);
         });
     });
 });

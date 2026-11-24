@@ -8,17 +8,28 @@ import { Bytes } from "@matter/general";
 import { ValueModel } from "@matter/model";
 import { ValidationDatatypeMismatchError } from "@matter/types";
 
+function jsonTypeOf(data: unknown) {
+    if (data === null) {
+        return "null";
+    }
+    return Array.isArray(data) ? "array" : typeof data;
+}
+
 export function convertJsonDataWithModel(model: ValueModel, data: any): any {
+    if (data === undefined || (data === null && model.effectiveQuality.nullable)) {
+        return data;
+    }
+
     const definingModel = model.definingModel ?? model;
     switch (definingModel.effectiveMetatype) {
         case "array":
             if (!Array.isArray(data)) {
-                throw new ValidationDatatypeMismatchError(`Expected array, got ${typeof data}`);
+                throw new ValidationDatatypeMismatchError(`Expected array, got ${jsonTypeOf(data)}`);
             }
             return data.map(item => convertJsonDataWithModel(definingModel.children[0], item));
         case "object":
-            if (typeof data !== "object") {
-                throw new ValidationDatatypeMismatchError(`Expected object, got ${typeof data}`);
+            if (typeof data !== "object" || data === null || Array.isArray(data)) {
+                throw new ValidationDatatypeMismatchError(`Expected object, got ${jsonTypeOf(data)}`);
             }
             for (const child of definingModel.children) {
                 const childKeyName = child.propertyName;

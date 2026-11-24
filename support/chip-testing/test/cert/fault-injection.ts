@@ -6,11 +6,14 @@
 
 import { bool, cluster, command, enum8, field, uint32 } from "@matter/main/model";
 
-/** CHIP's `FaultType.ChipFault`, the type whose ids {@link ChipFault} names. */
-export const FAULT_TYPE_CHIP = 3;
+/** CHIP's `FaultType` values for the fault types a cert test arms. */
+export const FaultType = {
+    /** The type whose ids {@link ChipFault} names. */
+    chipFault: 3,
+} as const;
 
 /**
- * Fault ids of the CHIP faults a cert test arms, which `CHIPFaultInjection.h` pins with static
+ * Fault ids of the {@link FaultType.chipFault} faults a cert test arms, which `CHIPFaultInjection.h` pins with static
  * assertions "because the test plan specification and automation code rely on this value".
  */
 export const ChipFault = {
