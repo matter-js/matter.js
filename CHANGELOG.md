@@ -9,7 +9,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
-## __WORK IN PROGRESS__
+## 0.18.1 (2026-11-25)
 
 - @matter/examples
     - Fix: The controller examples log only the discovery options when commissioning, not the passcode or network credentials
