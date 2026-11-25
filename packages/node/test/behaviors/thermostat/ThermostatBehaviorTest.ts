@@ -10,6 +10,7 @@ import { Endpoint } from "#endpoint/index.js";
 import { Bytes, ImplementationError, MatterAggregateError } from "@matter/general";
 import { interaction, MockServerNode } from "@matter/node/testing";
 import {
+    AttributeId,
     ClusterId,
     CommandId,
     EndpointNumber,
@@ -61,6 +62,23 @@ describe("ThermostatBehavior", () => {
     it("correctly specifies Thermostat-specific value in defaults", () => {
         const msd = AutoThermo.defaults.minSetpointDeadBand;
         expect(msd).equals(20);
+    });
+
+    describe("ThermostatRunningMode", () => {
+        const THERMOSTAT_RUNNING_MODE_ID = AttributeId(0x1e);
+
+        it("is not exposed with AutoMode and without Events", async () => {
+            const { node, device } = await createAutoThermo();
+            expect(device.state.thermostat.thermostatRunningMode).undefined;
+            expect(device.globalsOf(ThermostatServer).attributeList).not.includes(THERMOSTAT_RUNNING_MODE_ID);
+            await node.close();
+        });
+
+        it("defaults to Off with AutoMode and Events", () => {
+            expect(
+                ThermostatServer.with("Heating", "Cooling", "AutoMode", "Events").defaults.thermostatRunningMode,
+            ).equals(Thermostat.ThermostatRunningMode.Off);
+        });
     });
 
     describe("startup reconciliation", () => {
@@ -293,6 +311,7 @@ describe("ThermostatBehavior", () => {
             const { node, device } = await createAutoThermo({
                 controlSequenceOfOperation: CoolingAndHeatingWithReheat,
                 useAutomaticModeManagement: true,
+                thermostatRunningMode: Thermostat.ThermostatRunningMode.Off,
             });
 
             await device.set({ thermostat: { externalMeasuredIndoorTemperature: 1500 } });
@@ -306,6 +325,7 @@ describe("ThermostatBehavior", () => {
             const { node, device } = await createAutoThermo({
                 controlSequenceOfOperation: CoolingWithReheat,
                 useAutomaticModeManagement: true,
+                thermostatRunningMode: Thermostat.ThermostatRunningMode.Off,
                 externalMeasuredIndoorTemperature: 1500,
             });
 
@@ -318,6 +338,7 @@ describe("ThermostatBehavior", () => {
             const { node, device } = await createAutoThermo({
                 controlSequenceOfOperation: HeatingWithReheat,
                 useAutomaticModeManagement: true,
+                thermostatRunningMode: Thermostat.ThermostatRunningMode.Off,
                 externalMeasuredIndoorTemperature: 3000,
             });
 

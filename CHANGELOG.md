@@ -94,6 +94,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: `ParallelPaseDiscovery` passes each attempt its own abort signal to the `registerAttempt()` factory and no longer has the protected `abortSignal` getter
     - Fix: A device accepts Invoke and Write requests that leave out a false SuppressResponse or TimedRequest, and group Write requests that leave out SuppressResponse, as the CHIP SDK sends them
     - Fix: A client emits an event that arrives before the data of its cluster in the same read, instead of dropping it as an event of an unsupported cluster
+    - Fix: A derived cluster behavior drops the schema default of an attribute that is mandatory in its base and optional in the derivative, so the attribute is no longer exposed; a default the application set is kept
     - Fix: `ThermostatServer` keeps the preset that the application activates with `setActivePresetRequest`
     - Fix: `ThermostatServer` treats `ControlSequenceOfOperation` CoolingWithReheat as the sequence without heating, instead of CoolingAndHeatingWithReheat, and automatic mode management in Auto turns the running mode off instead of failing when the sequence does not allow heating or cooling
     - Fix: `ThermostatServer` raises `NumberOfPresets` at startup to cover the stored presets, instead of failing to start after a configuration lowered it
