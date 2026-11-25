@@ -9,6 +9,11 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
+## __WORK IN PROGRESS__
+
+- @matter/model
+    - Fix: `SelectDefaultValue` returns null for a nullable struct or bitmap without a stated default, so `CommodityPrice` `currentPrice` and `DeviceEnergyManagement` `forecast` default to null instead of an incomplete struct
+
 ## 0.18.1 (2026-11-25)
 
 - @matter/examples
