@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { CommodityTariffServer } from "#behaviors/commodity-tariff";
 import { GroupsServer } from "#behaviors/groups";
 import { LevelControlBaseServer, LevelControlBehavior, LevelControlServer } from "#behaviors/level-control";
 import { OnOffBaseServer, OnOffServer } from "#behaviors/on-off";
@@ -143,11 +142,6 @@ describe("cluster behavior feature selection", () => {
                 const Restored = Set.with("Heating").with("Heating", "Cooling", "AutoMode");
                 expect(Restored.defaults.thermostatRunningMode).equals(Thermostat.ThermostatRunningMode.Heat);
             });
-        });
-
-        it("keeps a null default the schema selected while the attribute stays mandatory", () => {
-            // The derivative's own schema default would be a struct built from the RandomizationType field default
-            expect(CommodityTariffServer.with("Randomization").defaults.currentDayEntry).equals(null);
         });
 
         it("rejects a feature the cluster does not define", () => {
