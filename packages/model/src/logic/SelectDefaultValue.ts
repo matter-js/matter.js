@@ -70,10 +70,9 @@ export function StoredDefaultValue(scope: Scope, member: ValueModel): unknown {
  * and lists, structs composited recursively; an enumeration's fallback is manufacturer-specific and stays
  * undefined).
  *
- * Diverges from {@link SelectDefaultValue} for object/bitmap metatypes: it consults only a default the schema
- * states explicitly - {@link DefaultValue}'s constructed partial objects ignore conformance and bypass the
- * nullable rule - and builds struct defaults by recursing over conformant members instead of returning an empty
- * `{}`. The return may be model-owned shared state (an explicit default), so callers copy it before mutation or
+ * Diverges from {@link SelectDefaultValue} for non-nullable object/bitmap metatypes: it consults only a default the
+ * schema states explicitly - {@link DefaultValue}'s constructed partial objects ignore conformance - and builds struct
+ * defaults by recursing over conformant members instead of returning an empty `{}`. The return may be model-owned shared state (an explicit default), so callers copy it before mutation or
  * hand-out.
  */
 export function MandatoryDefaultValue(scope: Scope, member: ValueModel, visiting?: Set<ValueModel>): unknown {
@@ -142,10 +141,20 @@ export function MandatoryDefaultValue(scope: Scope, member: ValueModel, visiting
  * Compute the default value for a member's metatype, assuming the caller has already determined it is supported.
  */
 function defaultValueForMetatype(scope: Scope, member: ValueModel): unknown {
+    // DefaultValue builds structs and bitmaps from their fields' defaults, which ignores the nullable rule
+    const metatype = member.effectiveMetatype;
+    if (
+        member.nullable &&
+        (metatype === Metatype.object || metatype === Metatype.bitmap) &&
+        FieldValue.stated(member.default) === undefined
+    ) {
+        return null;
+    }
+
     // If there's an explicit default, use that
     const effectiveDefault = DefaultValue(scope, member);
     if (effectiveDefault !== undefined) {
-        if (member.effectiveMetatype === Metatype.bitmap) {
+        if (metatype === Metatype.bitmap) {
             return DecodedBitmap(member, effectiveDefault, scope);
         }
         return effectiveDefault;
@@ -156,7 +165,7 @@ function defaultValueForMetatype(scope: Scope, member: ValueModel): unknown {
         return null;
     }
 
-    switch (member.effectiveMetatype) {
+    switch (metatype) {
         case Metatype.integer:
         case Metatype.float:
             return 0;

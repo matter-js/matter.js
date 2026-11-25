@@ -12,6 +12,8 @@ import { QuietEvent } from "#behavior/Events.js";
 import { FeatureMismatchError } from "#behavior/internal/ServerBehaviorBacking.js";
 import { StateType } from "#behavior/state/StateType.js";
 import { BasicInformationBehavior } from "#behaviors/basic-information";
+import { CommodityPriceServer } from "#behaviors/commodity-price";
+import { DeviceEnergyManagementServer } from "#behaviors/device-energy-management";
 import { LevelControlServer } from "#behaviors/level-control";
 import { NetworkCommissioningServer } from "#behaviors/network-commissioning";
 import { OnOffServer } from "#behaviors/on-off";
@@ -316,6 +318,11 @@ describe("ClusterBehavior", () => {
             expect(MyBehavior.defaults.attr2).equals(123);
             expect(MyBehavior.defaults.attr3).equals("abc");
             expect(MyBehavior.defaults.attr4).equals(false);
+        });
+
+        it("assigns null to a nullable struct attribute without a stated default", () => {
+            expect(CommodityPriceServer.defaults.currentPrice).equals(null);
+            expect(DeviceEnergyManagementServer.with("PowerForecastReporting").defaults.forecast).equals(null);
         });
 
         it("carries forward non-command methods", () => {

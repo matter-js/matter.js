@@ -109,6 +109,37 @@ describe("SelectDefaultValue", () => {
         expect(SelectDefaultValue(scope, member)).deep.equals({});
     });
 
+    it("selects null for a nullable struct rather than a struct of its members' defaults", () => {
+        const { scope, member } = memberFor({
+            name: "Field",
+            type: "struct",
+            quality: "X",
+            children: [FieldElement({ name: "Flag", type: "bool", conformance: "M", default: true })],
+        });
+        expect(SelectDefaultValue(scope, member)).equals(null);
+    });
+
+    it("selects null for a nullable bitmap rather than a bitmap of its flags' defaults", () => {
+        const { scope, member } = memberFor({
+            name: "Field",
+            type: "map8",
+            quality: "X",
+            children: [FieldElement({ name: "Flag", constraint: "0", default: true })],
+        });
+        expect(SelectDefaultValue(scope, member)).equals(null);
+    });
+
+    it("selects the stated default of a nullable bitmap", () => {
+        const { scope, member } = memberFor({
+            name: "Field",
+            type: "map8",
+            quality: "X",
+            default: 1,
+            children: [FieldElement({ name: "Flag", constraint: "0" })],
+        });
+        expect(SelectDefaultValue(scope, member)).deep.equals({ flag: true });
+    });
+
     it("selects no value for an unsupported member", () => {
         const parent = new DatatypeModel(
             { name: "Parent", type: "struct" },
