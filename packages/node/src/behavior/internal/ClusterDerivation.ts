@@ -5,7 +5,14 @@
  */
 
 import { ElementEvent, Events, OfflineEvent, OnlineEvent, QuietEvent } from "#behavior/Events.js";
-import { AsyncObservable, camelize, EventEmitter, GeneratedClass, ImplementationError } from "@matter/general";
+import {
+    AsyncObservable,
+    camelize,
+    EventEmitter,
+    GeneratedClass,
+    ImplementationError,
+    isDeepEqual,
+} from "@matter/general";
 import { ClusterModel, ElementTag, FeatureMap, Schema, Scope, SelectDefaultValue, ValueModel } from "@matter/model";
 import { Val } from "@matter/protocol";
 import { ClusterType } from "@matter/types";
@@ -51,25 +58,35 @@ export function deriveOwnClusterStatics(type: Behavior.Type, schema: ClusterMode
 }
 
 const KNOWN_DEFAULTS = Symbol("knownDefaults");
+const SCHEMA_DEFAULTS = Symbol("schemaDefaults");
 
 /**
- * This is an internal utility used to track default values that we've erased due to conformance.  We reuse in
- * derivatives if the property is once again enabled.
+ * Default values a state class tracks across derivations, as static fields on the state class:
  *
- * We cast the state constructor to this type so [KNOWN_DEFAULTS] becomes a static field on the state class.
+ * - {@link KNOWN_DEFAULTS}: explicit defaults we erased due to conformance.  We reuse them in derivatives if the
+ *   property is once again enabled.
+ * - {@link SCHEMA_DEFAULTS}: the defaults the schema selected in the derivation that created the class.  A value still
+ *   equal to it did not come from the application, so a derivative selects the default for its own conformance again.
  */
-interface HasKnownDefaults {
+interface HasTrackedDefaults {
     [KNOWN_DEFAULTS]?: Val.Struct;
+    [SCHEMA_DEFAULTS]?: Val.Struct;
 }
 
 /**
  * Create a new state subclass that inherits relevant default values from a base Behavior.Type and adds new default
  * values from cluster attributes.
  *
+ * A default the application set carries over to the derivative.  A default the schema selected carries over only
+ * while the derivative still supports the attribute, as mandatory or enabled; otherwise the derivative selects the
+ * default for its own conformance.  So an attribute that is mandatory in the base and optional in the derivative has
+ * no default there.  A value the application set that is deep-equal to the schema default counts as selected by the
+ * schema.
+ *
  * Note - we only use the schema for default values, not the cluster
  */
 function createDerivedState({ scope, base, newProps }: DerivationContext) {
-    const BaseState = base["State"];
+    const BaseState: (Behavior.Type["State"] & HasTrackedDefaults) | undefined = base["State"];
     if (BaseState === undefined) {
         throw new ImplementationError(`No state class defined for behavior class ${base.name}`);
     }
@@ -77,7 +94,13 @@ function createDerivedState({ scope, base, newProps }: DerivationContext) {
     const schema = scope.owner as Schema.Cluster;
 
     const oldDefaults = new BaseState() as Record<string, any>;
-    let knownDefaults = (BaseState as HasKnownDefaults)[KNOWN_DEFAULTS];
+    let knownDefaults = BaseState[KNOWN_DEFAULTS];
+    const baseSchemaDefaults = BaseState[SCHEMA_DEFAULTS];
+    const schemaDefaults = {} as Val.Struct;
+
+    const isExplicitDefault = (name: string) =>
+        oldDefaults[name] !== undefined &&
+        (baseSchemaDefaults === undefined || !isDeepEqual(oldDefaults[name], baseSchemaDefaults[name]));
 
     // Index schema members by name
     const props = {} as Record<string, ValueModel[]>;
@@ -114,13 +137,15 @@ function createDerivedState({ scope, base, newProps }: DerivationContext) {
         if (!propSchema) {
             // Inapplicable; ensure no default is present
             if (oldDefaults[name] !== undefined) {
-                // Save the default value so we can recreate it if a future derivative re-enables this element
-                if (!knownDefaults) {
-                    knownDefaults = {};
-                } else if (knownDefaults === (BaseState as HasKnownDefaults)[KNOWN_DEFAULTS]) {
-                    knownDefaults = { ...knownDefaults };
+                // Save an explicit default so we can recreate it if a future derivative re-enables this element
+                if (isExplicitDefault(name)) {
+                    if (!knownDefaults) {
+                        knownDefaults = {};
+                    } else if (knownDefaults === BaseState[KNOWN_DEFAULTS]) {
+                        knownDefaults = { ...knownDefaults };
+                    }
+                    knownDefaults[name] = oldDefaults[name];
                 }
-                knownDefaults[name] = oldDefaults[name];
 
                 // Now clear the default value
                 defaults[name] = undefined;
@@ -140,18 +165,34 @@ function createDerivedState({ scope, base, newProps }: DerivationContext) {
 
         // Make sure a default value is present if mandatory or marked as supported (note that the default value may
         // be "undefined" to indicate that an attribute is available optionally)
-        const oldDefault = oldDefaults[name] === undefined ? knownDefaults?.[name] : oldDefaults[name];
-        defaults[name] = oldDefault === undefined ? SelectDefaultValue(scope, propSchema) : oldDefault;
+        if (isExplicitDefault(name)) {
+            defaults[name] = oldDefaults[name];
+            continue;
+        }
+        if (oldDefaults[name] === undefined && knownDefaults?.[name] !== undefined) {
+            defaults[name] = knownDefaults[name];
+            continue;
+        }
+        const schemaDefault =
+            oldDefaults[name] !== undefined && scope.hasOperationalSupport(propSchema)
+                ? oldDefaults[name]
+                : SelectDefaultValue(scope, propSchema);
+        defaults[name] = schemaDefault;
+        schemaDefaults[name] = schemaDefault;
     }
 
-    const StateType = DerivedState({
+    const StateType: Behavior.Type["State"] & HasTrackedDefaults = DerivedState({
         name: `${schema.name}$State`,
         base: base.State,
         values: defaults,
     });
 
-    if (knownDefaults) {
-        (StateType as HasKnownDefaults)[KNOWN_DEFAULTS] = knownDefaults;
+    // DerivedState returns the base itself when no default changed; its tracked defaults then still apply
+    if (StateType !== BaseState) {
+        if (knownDefaults) {
+            StateType[KNOWN_DEFAULTS] = knownDefaults;
+        }
+        StateType[SCHEMA_DEFAULTS] = schemaDefaults;
     }
 
     return StateType;

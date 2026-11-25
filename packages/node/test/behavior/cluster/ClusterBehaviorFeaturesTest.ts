@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { CommodityTariffServer } from "#behaviors/commodity-tariff";
 import { GroupsServer } from "#behaviors/groups";
 import { LevelControlBaseServer, LevelControlBehavior, LevelControlServer } from "#behaviors/level-control";
 import { OnOffBaseServer, OnOffServer } from "#behaviors/on-off";
@@ -11,11 +12,12 @@ import { PowerSourceServer } from "#behaviors/power-source";
 import { ServiceAreaBaseServer, ServiceAreaServer } from "#behaviors/service-area";
 import { ThermostatBaseServer, ThermostatServer } from "#behaviors/thermostat";
 import { WindowCoveringBaseServer, WindowCoveringServer } from "#behaviors/window-covering";
-import { camelize, ImplementationError } from "@matter/general";
+import { camelize, ImplementationError, isDeepEqual } from "@matter/general";
 import { ClusterModel } from "@matter/model";
 import { causeMessagesOf } from "@matter/node/testing";
 import { ClusterType } from "@matter/types";
 import { LevelControl } from "@matter/types/clusters/level-control";
+import { Thermostat } from "@matter/types/clusters/thermostat";
 import * as behaviors from "../../../src/behaviors/index.js";
 import { MockEndpoint } from "../../endpoint/mock-endpoint.js";
 import { MockEndpointType } from "../mock-behavior.js";
@@ -35,6 +37,50 @@ const INTENTIONALLY_ENABLED: Record<string, string[]> = {
     TimeFormatLocalizationServer: ["calendarFormat"],
     UnitLocalizationServer: ["temperatureUnit"],
 };
+
+/**
+ * Defaults a published server sets for an attribute that the plain model behavior with the same features leaves
+ * undefined, by "Server.attribute".  A default makes an optional attribute appear in the AttributeList.  A new entry
+ * means a default leaks from a server's internal base into the narrowed class; a missing entry means a derivation
+ * dropped a server's own default.  Only selections of up to two features are checked.
+ */
+const SERVER_ONLY_DEFAULTS: Record<string, unknown[]> = {
+    "AdministratorCommissioningServer.windowStatus": [0],
+    "BasicInformationServer.maxPathsPerInvoke": [0],
+    "ColorControlServer.colorLoopActive": [0],
+    "ColorControlServer.colorLoopDirection": [1],
+    "ColorControlServer.enhancedColorMode": [1],
+};
+
+interface FeatureSelectable {
+    with(...features: string[]): { defaults: Record<string, unknown> };
+    cluster: { features?: Record<string, unknown> };
+}
+
+function isFeatureSelectable(type: unknown): type is FeatureSelectable {
+    return (
+        typeof type === "function" &&
+        "with" in type &&
+        typeof type.with === "function" &&
+        "cluster" in type &&
+        typeof type.cluster === "object" &&
+        type.cluster !== null
+    );
+}
+
+/**
+ * No feature, each single feature and each pair of features.
+ */
+function featureSelectionsOf(type: FeatureSelectable) {
+    const features = Object.keys(type.cluster.features ?? {});
+    const selections: string[][] = [[], ...features.map(feature => [feature])];
+    for (let i = 0; i < features.length; i++) {
+        for (let j = i + 1; j < features.length; j++) {
+            selections.push([features[i], features[j]]);
+        }
+    }
+    return selections;
+}
 
 function enabledFeaturesOf(type: { features: Record<string, boolean> }) {
     return Object.entries(type.features)
@@ -69,6 +115,39 @@ describe("cluster behavior feature selection", () => {
             expect(Dropped.schema.supportedFeatures.has("LT")).equals(false);
             expect(Dropped.defaults).not.property("remainingTime", 0);
             expect(Dropped.defaults).not.property("startUpCurrentLevel", null);
+        });
+
+        describe("defaults of an attribute mandatory in the base and optional in the derivative", () => {
+            // ThermostatRunningMode conformance is "TEVT & AUTO, [AUTO]" and the base selects both features
+            const AutoAndEvents = ThermostatBaseServer.with("Heating", "Cooling", "AutoMode", "Events");
+
+            it("drops the default the schema selected", () => {
+                expect(AutoAndEvents.defaults.thermostatRunningMode).equals(Thermostat.ThermostatRunningMode.Off);
+                expect(AutoAndEvents.with("Heating", "Cooling", "AutoMode").defaults.thermostatRunningMode).undefined;
+            });
+
+            it("does not restore the default the schema selected after a derivative dropped the attribute", () => {
+                const Restored = AutoAndEvents.with("Heating").with("Heating", "Cooling", "AutoMode");
+                expect(Restored.defaults.thermostatRunningMode).undefined;
+            });
+
+            it("keeps a default the application set", () => {
+                const Set = AutoAndEvents.set({ thermostatRunningMode: Thermostat.ThermostatRunningMode.Heat });
+                expect(Set.with("Heating", "Cooling", "AutoMode").defaults.thermostatRunningMode).equals(
+                    Thermostat.ThermostatRunningMode.Heat,
+                );
+            });
+
+            it("restores a default the application set after a derivative dropped the attribute", () => {
+                const Set = AutoAndEvents.set({ thermostatRunningMode: Thermostat.ThermostatRunningMode.Heat });
+                const Restored = Set.with("Heating").with("Heating", "Cooling", "AutoMode");
+                expect(Restored.defaults.thermostatRunningMode).equals(Thermostat.ThermostatRunningMode.Heat);
+            });
+        });
+
+        it("keeps a null default the schema selected while the attribute stays mandatory", () => {
+            // The derivative's own schema default would be a struct built from the RandomizationType field default
+            expect(CommodityTariffServer.with("Randomization").defaults.currentDayEntry).equals(null);
         });
 
         it("rejects a feature the cluster does not define", () => {
@@ -199,6 +278,39 @@ describe("cluster behavior feature selection", () => {
                 powerSource: { ...powerSource, wiredCurrentType: 0 },
             });
             await endpoint.close();
+        });
+
+        it("set defaults the model leaves undefined only where pinned", () => {
+            const actual: Record<string, unknown[]> = {};
+            const exportsByName = new Map<string, unknown>(Object.entries(behaviors));
+
+            for (const [name, server] of exportsByName) {
+                const model = exportsByName.get(name.replace(/Server$/, "Behavior"));
+                if (!name.endsWith("Server") || !isFeatureSelectable(server) || !isFeatureSelectable(model)) {
+                    continue;
+                }
+
+                for (const features of featureSelectionsOf(server)) {
+                    const serverDefaults = server.with(...features).defaults;
+                    const modelDefaults = model.with(...features).defaults;
+
+                    for (const [attribute, value] of Object.entries(serverDefaults)) {
+                        if (
+                            value === undefined ||
+                            modelDefaults[attribute] !== undefined ||
+                            !(attribute in modelDefaults)
+                        ) {
+                            continue;
+                        }
+                        const values = (actual[`${name}.${attribute}`] ??= new Array<unknown>());
+                        if (!values.some(known => isDeepEqual(known, value))) {
+                            values.push(value);
+                        }
+                    }
+                }
+            }
+
+            expect(actual).deep.equals(SERVER_ONLY_DEFAULTS);
         });
 
         it("enable only features matter.js implements unconditionally", () => {
