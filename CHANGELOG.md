@@ -9,7 +9,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
-## __WORK IN PROGRESS__
+## 0.18.1 (2026-11-25)
 
 - @matter/examples
     - Fix: The controller examples log only the discovery options when commissioning, not the passcode or network credentials
@@ -178,11 +178,16 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The BLE transport opens channels again after the controller went offline and online
 
 - @matter/nodejs-shell
+    - Adjustment: `nodes ota apply` applies only production images while `config ota-test-images` is off
+    - Adjustment: With `--local`, the OTA commands skip stored local images with `--mode prod`, and with `--mode auto` while `config ota-test-images` is off, and say so
+    - Adjustment: `nodes ota known --local` lists stored local images only while `config ota-test-images` is set
+    - Adjustment: `config ota-test-images` names local images in its output
     - Enhancement: Event logs show the absolute time of events a device reported with a delta timestamp
     - Fix: Migrating legacy storage no longer fails on a peer whose stored discovery TTL is invalid
     - Fix: `config fabricLabel set` checks the 32-byte limit in UTF-8 bytes instead of characters
     - Fix: A stored controller fabric label over 32 UTF-8 bytes is shortened on start with a warning
     - Fix: Command and attribute write values may leave out optional struct or list fields and set nullable struct or list values to null, and `null` or a list given for a struct is refused with a clear error
+    - Fix: `nodes ota apply --local --force` applies a stored image instead of downloading it again
 
 - @matter/protocol
     - Feature: `ControllerCommissioner.updateOperationalCertificate()` and `OperationalCertificateUpdate.update()` replace a peer's operational certificate with one for a new key pair
@@ -200,6 +205,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `ExchangeSendOptions.onTransmitted` runs once the first transmission of a message went out
     - Enhancement: `SecureChannelMessenger.sendSuccess()` takes an optional `onTransmitted` callback
     - Enhancement: Message logs show the I flag in `msgFlags` for messages from the exchange initiator
+    - Enhancement: Added `DclOtaUpdateService.findApplicable()` to list the stored update images a device can apply, in offer order
+    - Adjustment: `DclOtaUpdateService.checkForUpdate()` with `isProduction: true` no longer returns stored local images
     - Adjustment: Exchange logs show `maxTrans` and `retransTimeLimit` on the first transmission of a message that has its own retransmission budget, instead of always `maxTrans: 5` when the exchange opens
     - Adjustment: `DeviceAttestationValidator.validate()` returns a CD mismatch with the BasicInformation VendorID or ProductID, also an unreported value, as an error-level finding instead of throwing
     - Adjustment: A CSRResponse that is empty, lacks a field, has NOCSRElements over 900 bytes, or cannot be decoded fails commissioning with `NocsrError`
@@ -303,17 +310,6 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Migrating a legacy controller's peers no longer fails on a stored discovery TTL that is invalid
     - Fix: (@cwedgwood) `PairedNode` waits for concurrent network state updates when it enables the subscription, so a lock conflict no longer leaves the node unsubscribed
     - Fix: Attribute write, attribute update and endpoint structure logs of the legacy controller show secret values as `(redacted)`
-
-- @matter/nodejs-shell
-    - Adjustment: `nodes ota apply` applies only production images while `config ota-test-images` is off
-    - Adjustment: With `--local`, the OTA commands skip stored local images with `--mode prod`, and with `--mode auto` while `config ota-test-images` is off, and say so
-    - Adjustment: `nodes ota known --local` lists stored local images only while `config ota-test-images` is set
-    - Adjustment: `config ota-test-images` names local images in its output
-    - Fix: `nodes ota apply --local --force` applies a stored image instead of downloading it again
-
-- @matter/protocol
-    - Enhancement: Added `DclOtaUpdateService.findApplicable()` to list the stored update images a device can apply, in offer order
-    - Adjustment: `DclOtaUpdateService.checkForUpdate()` with `isProduction: true` no longer returns stored local images
 
 ## 0.18.0 (2026-10-20)
 
