@@ -32,6 +32,9 @@ export interface DerivedState<Base extends StateType = StateType, Extension exte
 
 /**
  * Extend state with additional values.
+ *
+ * A value identical to the base's default is not recorded.  If no value differs, the result is `base` itself, or
+ * {@link EmptyState} without a base.
  */
 export function DerivedState<const Base extends StateType, const Extension extends Val.Struct>({
     base,
