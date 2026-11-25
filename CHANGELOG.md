@@ -9,6 +9,11 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
+## __WORK IN PROGRESS__
+
+- @matter/model
+    - Fix: `SelectDefaultValue` returns null for a nullable struct or bitmap without a stated default, so `CommodityPrice` `currentPrice` and `DeviceEnergyManagement` `forecast` default to null instead of an incomplete struct
+
 ## 0.18.1 (2026-11-25)
 
 - @matter/examples
@@ -40,7 +45,6 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/model
     - Feature: `ValueModel.fabricScopedList` tells whether a value is a fabric-scoped list
     - Feature: The `isSecret` element property and the `secret` decorator mark a value as secret, and `SecretRedaction` replaces secret values for logging; standard fields that carry network credentials, keys, passcodes and PINs are marked secret
-    - Fix: `SelectDefaultValue` returns null for a nullable struct or bitmap without a stated default, so `CommodityPrice` `currentPrice` and `DeviceEnergyManagement` `forecast` default to null instead of an incomplete struct
 
 - @matter/node
     - Feature: (@RaHehl) `ZoneManagementServer` implements the zone and trigger commands and refuses requests the specification does not allow
