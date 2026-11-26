@@ -366,6 +366,25 @@ describe("ClusterBehavior", () => {
             expect(AlteredBehavior.id).equals("myCluster");
         });
 
+        it("applies a changed default", () => {
+            expect(OnOffServer.alter({ attributes: { onOff: { default: true } } }).defaults.onOff).equals(true);
+        });
+
+        it("keeps a default the application set to the schema default", () => {
+            const Set = OnOffServer.set({ onOff: false });
+            expect(Set.alter({ attributes: { onOff: { default: true } } }).defaults.onOff).equals(false);
+        });
+
+        it("keeps a default the application set before a feature selection", () => {
+            const Selected = OnOffServer.set({ onOff: false }).with("Lighting");
+            expect(Selected.alter({ attributes: { onOff: { default: true } } }).defaults.onOff).equals(false);
+        });
+
+        it("keeps a default the application set in an earlier set()", () => {
+            const Set = OnOffServer.with("Lighting").set({ onOff: false }).set({ globalSceneControl: false });
+            expect(Set.alter({ attributes: { onOff: { default: true } } }).defaults.onOff).equals(false);
+        });
+
         it("extends correct event class", () => {
             const base = new MyEventedBehavior.Events();
             expect(typeof base.somethingHappened?.on).equals("function");

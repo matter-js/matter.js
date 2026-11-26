@@ -137,6 +137,13 @@ describe("cluster behavior feature selection", () => {
                 );
             });
 
+            it("keeps a default the application set to the schema default", () => {
+                const Set = AutoAndEvents.set({ thermostatRunningMode: Thermostat.ThermostatRunningMode.Off });
+                expect(Set.with("Heating", "Cooling", "AutoMode").defaults.thermostatRunningMode).equals(
+                    Thermostat.ThermostatRunningMode.Off,
+                );
+            });
+
             it("restores a default the application set after a derivative dropped the attribute", () => {
                 const Set = AutoAndEvents.set({ thermostatRunningMode: Thermostat.ThermostatRunningMode.Heat });
                 const Restored = Set.with("Heating").with("Heating", "Cooling", "AutoMode");

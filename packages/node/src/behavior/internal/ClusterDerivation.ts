@@ -19,6 +19,7 @@ import { ClusterType } from "@matter/types";
 import type { Behavior } from "../Behavior.js";
 import type { ClusterBehaviorType } from "../cluster/ClusterBehaviorType.js";
 import { DerivedState } from "../state/StateType.js";
+import { explicitDefaultsOf } from "./ExplicitDefaults.js";
 
 /**
  * The input of a cluster behavior derivation.
@@ -66,7 +67,8 @@ const SCHEMA_DEFAULTS = Symbol("schemaDefaults");
  * - {@link KNOWN_DEFAULTS}: explicit defaults we erased due to conformance.  We reuse them in derivatives if the
  *   property is once again enabled.
  * - {@link SCHEMA_DEFAULTS}: the defaults the schema selected in the derivation that created the class.  A value still
- *   equal to it did not come from the application, so a derivative selects the default for its own conformance again.
+ *   equal to it counts as selected by the schema.  A derivative replaces such a value with the default of its own
+ *   schema, unless `set()` assigned the value.
  */
 interface HasTrackedDefaults {
     [KNOWN_DEFAULTS]?: Val.Struct;
@@ -77,11 +79,16 @@ interface HasTrackedDefaults {
  * Create a new state subclass that inherits relevant default values from a base Behavior.Type and adds new default
  * values from cluster attributes.
  *
- * A default the application set carries over to the derivative.  A default the schema selected carries over only
- * while the derivative still supports the attribute, as mandatory or enabled; otherwise the derivative selects the
- * default for its own conformance.  So an attribute that is mandatory in the base and optional in the derivative has
- * no default there.  A value the application set that is deep-equal to the schema default counts as selected by the
- * schema.
+ * A default the application set carries over to the derivative.  A default the schema selected does not: the
+ * derivative selects it again from its own schema and conformance.  So an attribute that is mandatory in the base and
+ * optional in the derivative has no default there, and a default that `alter()` changes takes effect.
+ *
+ * A value counts as set by the application when:
+ * - `set()` assigned it, see {@link explicitDefaultsOf}
+ * - it differs from the schema default of the base
+ * - no derivation created the base or any class it extends
+ *
+ * A State class field equal to the schema default counts as selected by the schema.
  *
  * Note - we only use the schema for default values, not the cluster
  */
@@ -98,9 +105,12 @@ function createDerivedState({ scope, base, newProps }: DerivationContext) {
     const baseSchemaDefaults = BaseState[SCHEMA_DEFAULTS];
     const schemaDefaults = {} as Val.Struct;
 
+    const explicitDefaults = explicitDefaultsOf(BaseState);
     const isExplicitDefault = (name: string) =>
         oldDefaults[name] !== undefined &&
-        (baseSchemaDefaults === undefined || !isDeepEqual(oldDefaults[name], baseSchemaDefaults[name]));
+        (explicitDefaults.has(name) ||
+            baseSchemaDefaults === undefined ||
+            !isDeepEqual(oldDefaults[name], baseSchemaDefaults[name]));
 
     // Index schema members by name
     const props = {} as Record<string, ValueModel[]>;
@@ -173,10 +183,7 @@ function createDerivedState({ scope, base, newProps }: DerivationContext) {
             defaults[name] = knownDefaults[name];
             continue;
         }
-        const schemaDefault =
-            oldDefaults[name] !== undefined && scope.hasOperationalSupport(propSchema)
-                ? oldDefaults[name]
-                : SelectDefaultValue(scope, propSchema);
+        const schemaDefault = SelectDefaultValue(scope, propSchema);
         defaults[name] = schemaDefault;
         schemaDefaults[name] = schemaDefault;
     }

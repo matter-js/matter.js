@@ -6,6 +6,7 @@
 
 import { GeneratedClass } from "@matter/general";
 import { Val } from "@matter/protocol";
+import { explicitDefaultsOf, recordExplicitDefaults } from "../internal/ExplicitDefaults.js";
 
 /**
  * State is a plain JS object.
@@ -34,12 +35,14 @@ export interface DerivedState<Base extends StateType = StateType, Extension exte
  * Extend state with additional values.
  *
  * A value identical to the base's default is not recorded.  If no value differs, the result is `base` itself, or
- * {@link EmptyState} without a base.
+ * {@link EmptyState} without a base.  With `explicit` the names of `values` are recorded as set by the application,
+ * also where a value equals the base's default; a name the base has not recorded yet results in a new type.
  */
 export function DerivedState<const Base extends StateType, const Extension extends Val.Struct>({
     base,
     values,
     name,
+    explicit,
 }: DerivedState.Options<Base, Extension>) {
     if (base === EmptyState) {
         base = undefined;
@@ -57,15 +60,32 @@ export function DerivedState<const Base extends StateType, const Extension exten
         }
     }
 
-    if (!newDefaults) {
+    const baseExplicitDefaults = base ? explicitDefaultsOf(base) : new Set<string>();
+    let explicitDefaults: undefined | Set<string>;
+    if (explicit) {
+        for (const key in values) {
+            if (!baseExplicitDefaults.has(key)) {
+                explicitDefaults ??= new Set(baseExplicitDefaults);
+                explicitDefaults.add(key);
+            }
+        }
+    }
+
+    if (!newDefaults && !explicitDefaults) {
         return (base ?? EmptyState) as DerivedState<Base, Extension>;
     }
 
-    return GeneratedClass({
+    const type = GeneratedClass({
         name: name ?? base?.name ?? "State",
         base: base,
-        instanceProperties: newDefaults,
+        instanceProperties: newDefaults ?? {},
     }) as DerivedState<Base, Extension>;
+
+    if (explicitDefaults) {
+        recordExplicitDefaults(type, explicitDefaults);
+    }
+
+    return type;
 }
 
 export namespace DerivedState {
@@ -73,5 +93,12 @@ export namespace DerivedState {
         values: Values;
         base?: Base;
         name?: string;
+
+        /**
+         * Record the names of `values` as set by the application, so a derived cluster behavior keeps their values.
+         *
+         * @internal
+         */
+        explicit?: boolean;
     }
 }
