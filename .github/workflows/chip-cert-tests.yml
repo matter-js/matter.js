@@ -10,9 +10,8 @@
 #     time against a device whose retry intervals cannot be shortened (MATTER_CERT_LONG_RUNNING)
 #
 #   * A manual trigger (workflow_dispatch), with inputs for the ref to test, which device binary
-#     source(s) to exercise, and a chip-cert-bins tag override
-#
-#   * Every published release (official or nightly dev), checked out at that release's exact tag
+#     source(s) to exercise, and a chip-cert-bins tag override. release-npm.yml starts it this way for
+#     every official release, with the release tag as the ref
 #
 #   * A push that changed the cert suite or the framework it runs on (see the `changes` filter in
 #     `prepare`), or whose head commit message contains [execute-certtests]
@@ -91,8 +90,6 @@ on:
         description: 'connectedhomeip commit SHA (or "latest") for the official chip-cert-bins image; empty uses the code-side default (DEFAULT_CERT_BINS_TAG in packages/testing/src/chip/chip-bins.ts)'
         required: false
         default: ''
-  release:
-    types: [published]
   push:
 
 # Cancel previous runs on the same ref when a new commit is pushed. Pushes without the
@@ -111,7 +108,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
 
 jobs:
-  # Resolve the four trigger paths into a single set of inputs the rest of the workflow consumes.
+  # Resolve the three trigger paths into a single set of inputs the rest of the workflow consumes.
   prepare:
     if: github.repository == 'matter-js/matter.js'
     runs-on: ubuntu-24.04
@@ -156,7 +153,6 @@ jobs:
           DISPATCH_REF: ${{ inputs.ref }}
           DISPATCH_SOURCE: ${{ inputs.binariesSource }}
           DISPATCH_TAG: ${{ inputs.chipBinsTag }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
           DEFAULT_REF: ${{ github.sha }}
         run: |
           case "$EVENT_NAME" in
@@ -168,13 +164,6 @@ jobs:
               echo "ref=$DEFAULT_REF" >> "$GITHUB_OUTPUT"
               echo "binaries-source=both" >> "$GITHUB_OUTPUT"
               echo "chip-bins-tag=" >> "$GITHUB_OUTPUT"
-              ;;
-            release)
-              echo "should-run=true" >> "$GITHUB_OUTPUT"
-              echo "ref=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
-              echo "binaries-source=both" >> "$GITHUB_OUTPUT"
-              echo "chip-bins-tag=" >> "$GITHUB_OUTPUT"
-              echo "long-running=" >> "$GITHUB_OUTPUT"
               ;;
             workflow_dispatch)
               echo "should-run=true" >> "$GITHUB_OUTPUT"
