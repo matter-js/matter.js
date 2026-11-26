@@ -31,6 +31,7 @@ import "./MountedOnOffControlEndpoint.js";
 import "./OccupancySensorEndpoint.js";
 import "./OnOffLightEndpoint.js";
 import "./OnOffPlugInUnitEndpoint.js";
+import "./OnOffSensorEndpoint.js";
 import "./OvenEndpoint.js";
 import "./PowerSourceEndpoint.js";
 import "./PressureSensorEndpoint.js";
