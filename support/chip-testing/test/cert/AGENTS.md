@@ -220,8 +220,9 @@ none.
 
 CI runs these as the `test-cert-framework` gate that `test-cert` depends on
 (`.github/workflows/chip-cert-tests.yml`). Note what triggers that workflow: a daily schedule,
-`workflow_dispatch`, a release, and a **push** whose changed paths match its `prepare` filter (or
-whose head commit message carries `[execute-certtests]`) — there is no `pull_request` trigger, and
+`workflow_dispatch` (which `release-npm.yml` uses for every official release), and a **push** whose
+changed paths match its `prepare` filter (or whose head commit message carries `[execute-certtests]`)
+— there is no `pull_request` trigger, and
 `prepare` is gated on `github.repository == 'matter-js/matter.js'`. So an in-repo branch push runs
 it; a fork PR does not, and the paths filter diffs against `main` rather than the PR base. A
 root-level "suite green" says nothing about this directory either way.

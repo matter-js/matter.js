@@ -73,6 +73,11 @@ jobs:
       contains(github.event.pull_request.labels.*.name, 'automated-npm-release')
     needs: [ test, build-non-linux, check-and-lint ]
     runs-on: ubuntu-latest
+    permissions:
+      actions: write  # Starts the certification tests for an official release
+      contents: write
+      pull-requests: write
+      id-token: write  # Required for OIDC
     steps:
       - id: automerge
         name: automerge
@@ -142,3 +147,11 @@ jobs:
           draft: false
           prerelease: ${{ contains(steps.version.outputs.result, '-') }}
           body: ${{ contains(steps.version.outputs.result, '-') && 'Nightly release' || format('Official release, check [CHANGELOG.md]({0}) for details', 'https://github.com/matter-js/matter.js/blob/main/CHANGELOG.md') }}
+
+      # A release created with GITHUB_TOKEN starts no workflow run, but a workflow_dispatch from it does
+      - name: Run the certification tests on the official release
+        if: steps.automerge.outputs.mergeResult == 'merged' && !contains(steps.version.outputs.result, '-')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: v${{ steps.version.outputs.result }}
+        run: gh workflow run chip-cert-tests.yml --repo "$GITHUB_REPOSITORY" --ref "$TAG" -f ref="$TAG" -f binariesSource=both
