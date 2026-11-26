@@ -7,9 +7,14 @@
 import { Bytes, Duration, Seconds } from "@matter/general";
 import { Endpoint } from "@matter/main";
 import { BridgedDeviceBasicInformationServer } from "@matter/main/behaviors/bridged-device-basic-information";
+import { DescriptorServer } from "@matter/main/behaviors/descriptor";
 import { ElectricalEnergyMeasurementServer } from "@matter/main/behaviors/electrical-energy-measurement";
 import { ElectricalPowerMeasurementServer } from "@matter/main/behaviors/electrical-power-measurement";
 import { GeneralDiagnosticsServer } from "@matter/main/behaviors/general-diagnostics";
+import { Binding } from "@matter/main/clusters/binding";
+import { Identify } from "@matter/main/clusters/identify";
+import { OnOff } from "@matter/main/clusters/on-off";
+import { OnOffSensorDevice } from "@matter/main/devices/on-off-sensor";
 import { ValidationError } from "@matter/main/types";
 import { AllDevicesTestInstance } from "../../src/AllDevicesTestInstance.js";
 import { listDeviceTypes, listLeafDeviceTypes } from "../../src/devices/DeviceTypeRegistry.js";
@@ -213,6 +218,19 @@ describe("AllDevicesTestInstance --device", () => {
             ValidationError,
             "Parent endpoint 1",
         );
+    });
+
+    it("adds an on-off-sensor with the Identify and Binding servers and the Identify and OnOff clients", async () => {
+        const node = await setupWith("--device", "on-off-sensor:1");
+        try {
+            const [sensor] = [...node.parts];
+            const { deviceTypeList, serverList, clientList } = sensor.stateOf(DescriptorServer);
+            expect(deviceTypeList.map(({ deviceType }) => deviceType)).deep.equals([OnOffSensorDevice.deviceType]);
+            expect(serverList).include.members([Identify.id, Binding.id]);
+            expect(clientList).deep.equals([Identify.id, OnOff.id]);
+        } finally {
+            await node.close();
+        }
     });
 
     it("refuses bridged without an endpoint number", async () => {
