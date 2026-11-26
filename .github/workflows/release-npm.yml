@@ -154,4 +154,4 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: v${{ steps.version.outputs.result }}
-        run: gh workflow run chip-cert-tests.yml --repo "$GITHUB_REPOSITORY" --ref main -f ref="$TAG" -f binariesSource=both
+        run: gh workflow run chip-cert-tests.yml --repo "$GITHUB_REPOSITORY" --ref "$TAG" -f ref="$TAG" -f binariesSource=both
