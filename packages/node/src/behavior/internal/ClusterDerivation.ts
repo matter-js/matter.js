@@ -19,7 +19,7 @@ import { ClusterType } from "@matter/types";
 import type { Behavior } from "../Behavior.js";
 import type { ClusterBehaviorType } from "../cluster/ClusterBehaviorType.js";
 import { DerivedState } from "../state/StateType.js";
-import { explicitDefaultsOf } from "./ExplicitDefaults.js";
+import { hasExplicitDefault } from "./ExplicitDefaults.js";
 
 /**
  * The input of a cluster behavior derivation.
@@ -84,7 +84,7 @@ interface HasTrackedDefaults {
  * optional in the derivative has no default there, and a default that `alter()` changes takes effect.
  *
  * A value counts as set by the application when:
- * - `set()` assigned it, see {@link explicitDefaultsOf}
+ * - it is the value `set()` assigned, see {@link hasExplicitDefault}
  * - it differs from the schema default of the base
  * - no derivation created the base or any class it extends
  *
@@ -105,10 +105,9 @@ function createDerivedState({ scope, base, newProps }: DerivationContext) {
     const baseSchemaDefaults = BaseState[SCHEMA_DEFAULTS];
     const schemaDefaults = {} as Val.Struct;
 
-    const explicitDefaults = explicitDefaultsOf(BaseState);
     const isExplicitDefault = (name: string) =>
         oldDefaults[name] !== undefined &&
-        (explicitDefaults.has(name) ||
+        (hasExplicitDefault(BaseState, name, oldDefaults[name]) ||
             baseSchemaDefaults === undefined ||
             !isDeepEqual(oldDefaults[name], baseSchemaDefaults[name]));
 

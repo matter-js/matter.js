@@ -385,6 +385,11 @@ describe("ClusterBehavior", () => {
             expect(Set.alter({ attributes: { onOff: { default: true } } }).defaults.onOff).equals(false);
         });
 
+        it("keeps a default the application changed in a later set()", () => {
+            const Set = OnOffServer.set({ onOff: true }).set({ onOff: false });
+            expect(Set.alter({ attributes: { onOff: { default: true } } }).defaults.onOff).equals(false);
+        });
+
         it("extends correct event class", () => {
             const base = new MyEventedBehavior.Events();
             expect(typeof base.somethingHappened?.on).equals("function");

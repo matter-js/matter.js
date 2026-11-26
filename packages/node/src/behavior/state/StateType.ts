@@ -35,8 +35,8 @@ export interface DerivedState<Base extends StateType = StateType, Extension exte
  * Extend state with additional values.
  *
  * A value identical to the base's default is not recorded.  If no value differs, the result is `base` itself, or
- * {@link EmptyState} without a base.  With `explicit` the names of `values` are recorded as set by the application,
- * also where a value equals the base's default; a name the base has not recorded yet results in a new type.
+ * {@link EmptyState} without a base.  With `explicit` the `values` are recorded as set by the application, also where
+ * a value equals the base's default; a value the base has not recorded yet results in a new type.
  */
 export function DerivedState<const Base extends StateType, const Extension extends Val.Struct>({
     base,
@@ -60,13 +60,17 @@ export function DerivedState<const Base extends StateType, const Extension exten
         }
     }
 
-    const baseExplicitDefaults = base ? explicitDefaultsOf(base) : new Set<string>();
-    let explicitDefaults: undefined | Set<string>;
+    let explicitDefaults: undefined | Val.Struct;
     if (explicit) {
+        const baseExplicitDefaults = base ? explicitDefaultsOf(base) : {};
         for (const key in values) {
-            if (!baseExplicitDefaults.has(key)) {
-                explicitDefaults ??= new Set(baseExplicitDefaults);
-                explicitDefaults.add(key);
+            const value = (values as Val.Struct)[key];
+            if (
+                !Object.prototype.hasOwnProperty.call(baseExplicitDefaults, key) ||
+                baseExplicitDefaults[key] !== value
+            ) {
+                explicitDefaults ??= { ...baseExplicitDefaults };
+                explicitDefaults[key] = value;
             }
         }
     }
@@ -95,7 +99,7 @@ export namespace DerivedState {
         name?: string;
 
         /**
-         * Record the names of `values` as set by the application, so a derived cluster behavior keeps their values.
+         * Record `values` as set by the application, so a derived cluster behavior keeps them.
          *
          * @internal
          */
