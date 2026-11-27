@@ -14,6 +14,10 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/model
     - Fix: `SelectDefaultValue` returns null for a nullable struct or bitmap without a stated default, so `CommodityPrice` `currentPrice` and `DeviceEnergyManagement` `forecast` default to null instead of an incomplete struct
 
+- @matter/node
+    - Fix: `ModeSelectServer` rejects a write of a `startUpMode` or `onMode` outside `supportedModes` with CONSTRAINT_ERROR, and an application write of such a `currentMode` with `UnsupportedModeError`
+    - Fix: Mode Select and the Mode Base derived servers replace a mode outside `supportedModes`, for example one stored before a firmware update, with a warning at startup instead of failing the node start
+
 ## 0.18.1 (2026-11-25)
 
 - @matter/examples

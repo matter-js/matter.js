@@ -16,7 +16,11 @@ import { DeviceEnergyManagementModeBehavior } from "./DeviceEnergyManagementMode
 export class DeviceEnergyManagementModeServer extends DeviceEnergyManagementModeBehavior {
     override initialize(): MaybePromise {
         this.#assertSupportedModes();
-        ModeUtils.assertMode(this.state.supportedModes, this.state.currentMode);
+        this.state.currentMode = ModeUtils.supportedModeOrFirst(
+            this.state.supportedModes,
+            this.state.currentMode,
+            `${this.endpoint}.${this.type.id}`,
+        );
         this.reactTo(this.events.currentMode$Changing, this.#assertMode);
     }
 

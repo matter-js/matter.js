@@ -5,6 +5,7 @@
  */
 
 import { GeneralDiagnosticsBehavior } from "#behaviors/general-diagnostics";
+import { ModeUtils } from "#behaviors/mode-base";
 import { OnOffServer } from "#behaviors/on-off";
 import { ServerNode } from "#node/ServerNode.js";
 import { Logger, MaybePromise } from "@matter/general";
@@ -26,12 +27,18 @@ const ModeSelectBase = ModeSelectBehavior.with(ModeSelect.Feature.OnOff);
  * you can extend this class and override the methods you need.
  *
  * It should be sufficient to use the class without changes and just react on the currentMode changed events.
+ *
+ * At startup, a stored currentMode outside supportedModes is replaced by the first supported mode, and a stored
+ * startUpMode or onMode outside supportedModes is set to null, each with a warning.
  */
 export class ModeSelectBaseServer extends ModeSelectBase {
     override initialize(): MaybePromise {
-        this.#assertCurrentMode();
-        this.#assertStartUpMode();
-        this.#assertOnMode();
+        this.#replaceUnsupportedModes();
+        this.reactTo(this.events.currentMode$Changing, this.#assertCurrentMode);
+        if (this.events.startUpMode$Changing !== undefined) {
+            this.reactTo(this.events.startUpMode$Changing, this.#assertWrittenMode);
+        }
+        this.reactTo(this.events.onMode$Changing, this.#assertWrittenMode);
 
         let currentModeOverridden = false;
         // When OnOff feature is active handle the OnOff dependency and potentially setting OnMode
@@ -69,24 +76,37 @@ export class ModeSelectBaseServer extends ModeSelectBase {
         this.state.currentMode = newMode;
     }
 
-    #assertCurrentMode(): void {
-        this.#assertModeValue("currentMode", this.state.currentMode);
-    }
-
-    #assertStartUpMode(): void {
-        if (this.state.startUpMode !== undefined && this.state.startUpMode !== null) {
-            this.#assertModeValue("startUpMode", this.state.startUpMode);
+    /** Replaces a mode outside the fixed SupportedModes list, for example one stored before a firmware update. */
+    #replaceUnsupportedModes() {
+        const { supportedModes } = this.state;
+        this.state.currentMode = ModeUtils.supportedModeOrFirst(supportedModes, this.state.currentMode, this.#owner);
+        for (const attribute of ["startUpMode", "onMode"] as const) {
+            const mode = this.state[attribute];
+            if (mode !== undefined) {
+                this.state[attribute] = ModeUtils.supportedModeOrNull(supportedModes, mode, this.#owner, attribute);
+            }
         }
     }
 
-    #assertOnMode(): void {
-        if (this.state.onMode !== undefined && this.state.onMode !== null) {
-            this.#assertModeValue("onMode", this.state.onMode);
+    #assertCurrentMode(mode: number) {
+        ModeUtils.assertMode(this.state.supportedModes, mode);
+    }
+
+    #assertWrittenMode(mode: number | null | undefined) {
+        if (mode === undefined || mode === null) {
+            return;
         }
+        if (!ModeUtils.isSupported(this.state.supportedModes, mode)) {
+            throw new StatusResponseError(`Mode ${mode} is not in supportedModes`, Status.ConstraintError);
+        }
+    }
+
+    get #owner() {
+        return `${this.endpoint}.${this.type.id}`;
     }
 
     #assertModeValue(fieldName: string, mode: number): void {
-        if (!this.state.supportedModes.some(({ mode: supportedMode }) => supportedMode === mode)) {
+        if (!ModeUtils.isSupported(this.state.supportedModes, mode)) {
             throw new StatusResponseError(
                 `Mode ${mode} provided in ${fieldName} is not supported`,
                 Status.InvalidCommand,
