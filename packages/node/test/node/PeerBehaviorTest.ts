@@ -170,6 +170,18 @@ describe("PeerBehavior", () => {
             expect(behaviorType.cluster.revision).equals(5);
         });
 
+        it("uses the revision the peer sent as the default", () => {
+            const behaviorType = PeerBehavior({
+                kind: "discovered",
+                id: LEVEL_CONTROL,
+                revision: 5,
+                attributes: [0, 65528, 65529, 65531, 65532, 65533].map(n => AttributeId(n)),
+                commands: new Array<CommandId>(),
+            });
+
+            expect(behaviorType.defaults).property("clusterRevision", 5);
+        });
+
         it("judges a revision-conformant element against the revision the peer sent", () => {
             const validateFor = (revision: number) => {
                 const { schema } = PeerBehavior({

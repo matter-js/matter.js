@@ -99,6 +99,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A device accepts Invoke and Write requests that leave out a false SuppressResponse or TimedRequest, and group Write requests that leave out SuppressResponse, as the CHIP SDK sends them
     - Fix: A client emits an event that arrives before the data of its cluster in the same read, instead of dropping it as an event of an unsupported cluster
     - Fix: A derived cluster behavior drops the schema default of an attribute that is mandatory in its base and optional in the derivative, so the attribute is no longer exposed; a default the application set is kept
+    - Fix: A default changed with `alter()` takes effect for an attribute the base already supported
+    - Fix: A value set with `set()` is kept by later `with()` and `alter()` derivations also when it equals the schema default
+    - Fix: A client behavior of a peer that reports a different cluster revision uses that revision as its `clusterRevision` default
     - Fix: `ThermostatServer` keeps the preset that the application activates with `setActivePresetRequest`
     - Fix: `ThermostatServer` treats `ControlSequenceOfOperation` CoolingWithReheat as the sequence without heating, instead of CoolingAndHeatingWithReheat, and automatic mode management in Auto turns the running mode off instead of failing when the sequence does not allow heating or cooling
     - Fix: `ThermostatServer` raises `NumberOfPresets` at startup to cover the stored presets, instead of failing to start after a configuration lowered it

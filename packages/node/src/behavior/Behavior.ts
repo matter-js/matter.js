@@ -338,6 +338,7 @@ export abstract class Behavior {
                     name: `${this.name}$State`,
                     base: this.State,
                     values: defaults,
+                    explicit: true,
                 }),
             },
         }) as unknown as This;
