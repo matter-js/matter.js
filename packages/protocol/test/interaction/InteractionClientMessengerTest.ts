@@ -599,6 +599,30 @@ describe("InteractionClientMessenger", () => {
             expect(response?.writeResponses.length).equals(2);
         });
 
+        it("leaves false flags out of the encoded write when forced", async () => {
+            const { received, messenger } = await writeResponder();
+            const request = writeRequest([attributeData(1)], { suppressResponse: false });
+
+            await messenger.sendWriteCommand({ ...request, omitFalseFlags: true });
+
+            expect(received[0].request.suppressResponse).equals(undefined);
+            expect(received[0].request.timedRequest).equals(undefined);
+        });
+
+        it("leaves false flags out of every chunk when forced", async () => {
+            const { received, messenger } = await writeResponder();
+            const writes = Array.from({ length: 10 }, (_, i) => attributeData(i));
+
+            await messenger.sendWriteCommand({
+                ...writeRequest(writes, { suppressResponse: false }),
+                omitFalseFlags: true,
+            });
+
+            expect(received.length).greaterThan(1);
+            expect(received.map(({ request }) => request.timedRequest)).deep.equals(received.map(() => undefined));
+            expect(received.map(({ request }) => request.suppressResponse)).deep.equals(received.map(() => undefined));
+        });
+
         it("chunks a write that does not fit one message and merges the statuses of all chunks", async () => {
             const { received, messenger, exchange } = await writeResponder();
             const writes = Array.from({ length: 10 }, (_, i) => attributeData(i));
@@ -868,10 +892,10 @@ describe("InteractionClientMessenger.requestFlagsForSending", () => {
         );
     });
 
-    it("leaves out false flags of a group request", () => {
-        expect(requestFlagsForSending(allFalse, sessionOf(SessionType.Group), REVISION)).deep.equals({
-            invokeRequests: [],
-        });
+    it("sends both flags in a group request", () => {
+        expect(requestFlagsForSending(allFalse, sessionOf(SessionType.Group, REVISION), REVISION)).deep.equals(
+            allFalse,
+        );
     });
 
     it("leaves out false flags of a request to a peer at that revision", () => {
@@ -886,6 +910,24 @@ describe("InteractionClientMessenger.requestFlagsForSending", () => {
         );
     });
 
+    it("leaves out false flags of a group request when forced", () => {
+        const forced = { ...allFalse, omitFalseFlags: true };
+
+        expect(requestFlagsForSending(forced, sessionOf(SessionType.Group), REVISION)).deep.equals({
+            invokeRequests: [],
+            omitFalseFlags: true,
+        });
+    });
+
+    it("leaves out false flags when forced, whatever the revisions", () => {
+        const forced = { ...allFalse, omitFalseFlags: true };
+
+        expect(requestFlagsForSending(forced, sessionOf(SessionType.Unicast, REVISION - 1), REVISION - 1)).deep.equals({
+            invokeRequests: [],
+            omitFalseFlags: true,
+        });
+    });
+
     it("keeps a flag that is true", () => {
         const timed = { suppressResponse: false, timedRequest: true, invokeRequests: [] };
 
@@ -897,6 +939,6 @@ describe("InteractionClientMessenger.requestFlagsForSending", () => {
 
     // Characterization: fails once this node's revision is raised, as a reminder that peers then get fewer flags
     it("sends both flags at the current revision of this node", () => {
-        expect(requestFlagsForSending(allFalse, sessionOf(SessionType.Group))).deep.equals(allFalse);
+        expect(requestFlagsForSending(allFalse, sessionOf(SessionType.Unicast, REVISION))).deep.equals(allFalse);
     });
 });

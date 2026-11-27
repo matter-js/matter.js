@@ -75,8 +75,7 @@ export class ClientGroupInteraction extends ClientNodeInteraction {
             throw new InvalidGroupOperationError("Timed requests are not supported for group address invokes.");
         }
 
-        request.suppressResponse = true; // Invoking on a group does not yield a response by definition
-
-        return super.invoke(request, context);
+        // Invoking on a group does not yield a response by definition
+        return super.invoke({ ...request, suppressResponse: true }, context);
     }
 }

@@ -15,7 +15,7 @@ import { InvalidGroupOperationError } from "#node/client/ClientGroupInteraction.
 import { ClientGroup } from "#node/ClientGroup.js";
 import { MaybePromise } from "@matter/general";
 import { MockServerNode } from "@matter/node/testing";
-import { Write } from "@matter/protocol";
+import { Invoke, Write } from "@matter/protocol";
 import { EndpointNumber, FabricIndex, GroupId, NodeId } from "@matter/types";
 
 describe("ClientGroup", () => {
@@ -44,6 +44,36 @@ describe("ClientGroup", () => {
             expect((e as Error).message).to.equal("Groups do not support reading attributes");
         }
         expect(threw).to.be.true;
+    });
+
+    it("leaves the caller's invoke request unchanged", async () => {
+        const node = await MockServerNode.createOnline();
+        try {
+            const fabric = await node.addFabric();
+            const group = await node.peers.forAddress({
+                fabricIndex: fabric.fabricIndex,
+                nodeId: NodeId.fromGroupId(GroupId(5)),
+            });
+            if (!(group instanceof ClientGroup)) {
+                expect.fail("Expected a group node");
+            }
+            const request = Invoke(Invoke.WildcardCommandRequest({ cluster: OnOffClient.cluster, command: "toggle" }));
+
+            // The mock node has no group key, so sending fails; the request is prepared before that
+            await expect(
+                MockTime.resolve(
+                    (async () => {
+                        for await (const _chunk of group.interaction.invoke(request)) {
+                            // A group invoke yields no response
+                        }
+                    })(),
+                ),
+            ).rejectedWith("No group key set found");
+
+            expect(request.suppressResponse).equals(false);
+        } finally {
+            await node.close();
+        }
     });
 
     describe("state write on a group endpoint", () => {

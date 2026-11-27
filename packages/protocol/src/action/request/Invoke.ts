@@ -5,6 +5,7 @@
  */
 
 import { ClientRequest } from "#action/client/ClientRequest.js";
+import type { RequestFlagsOptions } from "#action/client/RequestFlagsOptions.js";
 import { SessionParameters } from "#session/SessionParameters.js";
 import { Diagnostic, Duration, isObject } from "@matter/general";
 import { CommandModel, Matter, SecretRedaction, Specification } from "@matter/model";
@@ -61,7 +62,7 @@ export interface CommandDecodeDetails {
     [Diagnostic.value]: () => unknown;
 }
 
-export interface ClientInvoke extends Invoke, ClientRequest {
+export interface ClientInvoke extends Invoke, ClientRequest, RequestFlagsOptions {
     commands: Map<number | undefined, Invoke.AnyCommandRequest>;
     skipValidation?: boolean;
 }
@@ -106,6 +107,7 @@ export function Invoke(
         useExtendedFailSafeMessageResponseTimeout = false,
         skipValidation = false,
         delayReportData,
+        omitFalseFlags,
     } = options;
 
     if (delayReportData !== undefined && !Specification.isForwardFeatureEnabled("delay-report-data")) {
@@ -152,6 +154,7 @@ export function Invoke(
         expectedProcessingTime,
         useExtendedFailSafeMessageResponseTimeout,
         delayReportData,
+        omitFalseFlags,
 
         // Additional meta-data for client side processing
         skipValidation,
@@ -161,7 +164,7 @@ export function Invoke(
 }
 
 export namespace Invoke {
-    export interface Definition {
+    export interface Definition extends RequestFlagsOptions {
         /** List of commands to invoke */
         commands: (Invoke.CommandRequest<any> | Invoke.LegacyCommandRequest)[];
 

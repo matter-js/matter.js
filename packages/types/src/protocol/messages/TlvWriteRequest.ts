@@ -16,9 +16,8 @@ import { TlvAttributeData } from "../types/TlvAttributeData.js";
 export const TlvWriteRequest = TlvObject({
     /**
      * Do not send a response to this action.  A receiver treats a missing field as false, except in a group write,
-     * which is never answered and so counts as true.
-     * A sender sets the field: the field is only left out on the wire by
-     * `InteractionClientMessenger.requestFlagsForSending`, and a receiver that requires it refuses the request.
+     * which is never answered and so counts as true.  The WriteRequestMessage encoding allows leaving the field
+     * out when false at every revision.
      */
     suppressResponse: TlvOptionalField(0, TlvBoolean),
 

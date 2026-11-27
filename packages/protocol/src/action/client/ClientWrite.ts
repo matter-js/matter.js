@@ -6,5 +6,6 @@
 
 import { Write } from "#action/request/Write.js";
 import { ClientRequest } from "./ClientRequest.js";
+import { RequestFlagsOptions } from "./RequestFlagsOptions.js";
 
-export interface ClientWrite extends Write, ClientRequest {}
+export interface ClientWrite extends Write, ClientRequest, RequestFlagsOptions {}

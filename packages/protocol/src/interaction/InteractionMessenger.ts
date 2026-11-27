@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { RequestFlagsOptions } from "#action/client/RequestFlagsOptions.js";
 import { isAclOrExtensionPath } from "#action/request/Write.js";
 import { ReadResult } from "#action/response/ReadResult.js";
 import { Mark } from "#common/Mark.js";
@@ -1259,7 +1260,7 @@ export class InteractionClientMessenger extends IncomingInteractionClientMesseng
      * Returns a combined InvokeResponse with all responses from all chunks, or undefined if suppressResponse
      */
     async sendInvokeCommand(
-        invokeRequest: InvokeRequest,
+        invokeRequest: InvokeRequest & RequestFlagsOptions,
         options?: ExchangeSendOptions,
     ): Promise<InvokeResponse | undefined> {
         invokeRequest = InteractionClientMessenger.requestFlagsForSending(invokeRequest, this.session);
@@ -1323,7 +1324,7 @@ export class InteractionClientMessenger extends IncomingInteractionClientMesseng
      * @see {@link MatterSpecification.v161.Core} § 10.7.6.2
      */
     async sendWriteCommand(
-        writeRequest: WriteRequest,
+        writeRequest: WriteRequest & RequestFlagsOptions,
         options?: ExchangeSendOptions,
     ): Promise<WriteResponse | undefined> {
         writeRequest = InteractionClientMessenger.requestFlagsForSending(writeRequest, this.session);
@@ -1490,6 +1491,8 @@ export class InteractionClientMessenger extends IncomingInteractionClientMesseng
         }
 
         flush();
+        // Sent although optional: a CHIP WriteHandler keeps the value of its previous use, here the true of the previous
+        // chunk, when the field is missing (https://github.com/project-chip/connectedhomeip/issues/74714)
         chunks[chunks.length - 1].moreChunkedMessages = false;
         return chunks;
     }
@@ -1568,25 +1571,32 @@ export namespace InteractionClientMessenger {
     /**
      * Prepares the SuppressResponse and TimedRequest flags of an Invoke or Write request for sending.
      *
-     * Once {@link ownRevision} reaches {@link FALSE_REQUEST_FLAGS_OMITTED_FROM_REVISION}, a false flag is left out of a
-     * group request and of a request to a peer that reported that revision or later; a receiver treats a missing flag
-     * as false.  Otherwise both flags are sent as given, and a missing flag stays missing.  Callers therefore set both
-     * flags; the `Write` and `Invoke` request builders do.  The request itself is not changed.
+     * A false flag is left out when {@link RequestFlagsOptions.omitFalseFlags} is set, or when this node and the peer
+     * of a unicast request both have revision {@link FALSE_REQUEST_FLAGS_OMITTED_FROM_REVISION} or later.  A receiver
+     * treats a missing flag as false.  Otherwise the flags are sent as given, and a missing flag stays missing: the
+     * `Invoke` builder sets both flags, the `Write` builder sets TimedRequest and sets SuppressResponse only when the
+     * caller gives it, which the WriteRequestMessage encoding allows at every revision.  The request itself is not changed.
+     *
+     * Without the option, a group request always carries both flags, because the revisions of the group members are
+     * unknown.
      *
      * @param request the Invoke or Write request to send
      * @param session the session the request is sent on
      * @param ownRevision the Interaction Model revision of this node
      */
-    export function requestFlagsForSending<T extends { suppressResponse?: boolean; timedRequest?: boolean }>(
+    export function requestFlagsForSending<
+        T extends RequestFlagsOptions & { suppressResponse?: boolean; timedRequest?: boolean },
+    >(
         request: T,
         session: { type: SessionType; parameters: { interactionModelRevision: number } },
         ownRevision: number = Specification.INTERACTION_MODEL_REVISION,
     ): T {
-        if (
-            ownRevision < FALSE_REQUEST_FLAGS_OMITTED_FROM_REVISION ||
-            (session.type !== SessionType.Group &&
-                session.parameters.interactionModelRevision < FALSE_REQUEST_FLAGS_OMITTED_FROM_REVISION)
-        ) {
+        const omitFalseFlags =
+            request.omitFalseFlags === true ||
+            (ownRevision >= FALSE_REQUEST_FLAGS_OMITTED_FROM_REVISION &&
+                session.type !== SessionType.Group &&
+                session.parameters.interactionModelRevision >= FALSE_REQUEST_FLAGS_OMITTED_FROM_REVISION);
+        if (!omitFalseFlags) {
             return request;
         }
 
