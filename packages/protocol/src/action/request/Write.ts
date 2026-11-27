@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { ClientWrite } from "#action/client/ClientWrite.js";
+import type { RequestFlagsOptions } from "#action/client/RequestFlagsOptions.js";
 import { Diagnostic, Duration } from "@matter/general";
 import { SecretRedaction, Specification } from "@matter/model";
 import { ArraySchema, AttributeData, AttributeId, ClusterId, TlvOfModel, WriteRequest } from "@matter/types";
@@ -34,19 +36,19 @@ export interface Write extends WriteRequest {
 /**
  * Formulate a write-request using Matter numeric IDs.
  */
-export function Write(options: Write.Options): Write;
+export function Write(options: Write.Options): ClientWrite;
 
 /**
  * Formulate a write-request with extended options and name-based IDs.
  */
-export function Write(options: Write.Options, ...data: Write.Attribute[]): Write;
+export function Write(options: Write.Options, ...data: Write.Attribute[]): ClientWrite;
 
 /**
  * Formulate a write-request with name-based IDs.
  */
-export function Write(...data: Write.Attribute[]): Write;
+export function Write(...data: Write.Attribute[]): ClientWrite;
 
-export function Write(optionsOrData: Write.Options | Write.Attribute, ...data: Write.Attribute[]): Write {
+export function Write(optionsOrData: Write.Options | Write.Attribute, ...data: Write.Attribute[]): ClientWrite {
     if (optionsOrData === undefined) {
         throw new MalformedRequestError(`Write action must have options or data`);
     }
@@ -65,6 +67,7 @@ export function Write(optionsOrData: Write.Options | Write.Attribute, ...data: W
         chunkLists = true, // Should be true currently to stay in sync with chip sdk, see below
         suppressResponse,
         interactionModelRevision = Specification.INTERACTION_MODEL_REVISION,
+        omitFalseFlags,
     } = options;
 
     for (const { path, dataVersion } of writeRequests) {
@@ -80,9 +83,12 @@ export function Write(optionsOrData: Write.Options | Write.Attribute, ...data: W
         timedRequest: !!timed || !!timeout,
         timeout,
         writeRequests,
+        // Sent although optional: a CHIP WriteHandler keeps the value of its previous use, also from an aborted earlier
+        // write, when the field is missing (https://github.com/project-chip/connectedhomeip/issues/74714)
         moreChunkedMessages: false,
         suppressResponse,
         interactionModelRevision,
+        omitFalseFlags,
 
         [Diagnostic.value]: () => {
             const items = data.flatMap(entry => {
@@ -103,7 +109,7 @@ export function Write(optionsOrData: Write.Options | Write.Attribute, ...data: W
             }
             return Diagnostic.list(items);
         },
-    } as Write;
+    } as ClientWrite;
 
     for (const entry of data) {
         reifyData(entry);
@@ -192,7 +198,7 @@ export function Write(optionsOrData: Write.Options | Write.Attribute, ...data: W
 }
 
 export namespace Write {
-    export interface Options {
+    export interface Options extends RequestFlagsOptions {
         writes?: AttributeData[];
 
         /** Whether this is sent as a timed request, if no timeout is specified a default is used */

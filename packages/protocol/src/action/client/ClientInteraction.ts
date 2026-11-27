@@ -220,6 +220,7 @@ function isBatchable(request: ClientInvoke) {
         // Only used with timedRequest, which Invoke() sets alongside it
         timeout: request.timeout !== undefined,
         delayReportData: request.delayReportData !== undefined,
+        omitFalseFlags: !!request.omitFalseFlags,
         // Large Message Quality commands must not be batched
         largeMessage: !!request.largeMessage,
         expectedProcessingTime: request.expectedProcessingTime !== undefined,

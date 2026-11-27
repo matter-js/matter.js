@@ -14,6 +14,20 @@ import { OnOff } from "@matter/types/clusters/on-off";
 
 describe("Write", () => {
     describe("basic write requests", () => {
+        it("carries omitFalseFlags to the request", () => {
+            const request = Write({
+                writes: [
+                    {
+                        path: { endpointId: EndpointNumber(1), clusterId: ClusterId(6), attributeId: AttributeId(0) },
+                        data: TlvUInt8.encodeTlv(1),
+                    },
+                ],
+                omitFalseFlags: true,
+            });
+
+            expect(request.omitFalseFlags).equals(true);
+        });
+
         it("creates write request with numeric IDs", () => {
             const request = Write({
                 writes: [

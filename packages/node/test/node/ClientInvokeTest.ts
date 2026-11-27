@@ -550,6 +550,7 @@ describe("ClientInvoke", () => {
                 { interactionModelRevision: SessionParameters.fallbacks.interactionModelRevision - 1 },
             ],
             ["timeout", { timeout: Seconds(5) }],
+            ["omitFalseFlags", { omitFalseFlags: true }],
             ["beforeDispatch", { beforeDispatch: () => undefined }],
             ["timedRequest", { timedRequest: true }],
             ["suppressResponse", { suppressResponse: true }],

@@ -8,6 +8,7 @@ import { ClientInteraction } from "#action/client/ClientInteraction.js";
 import { Invoke } from "#action/request/Invoke.js";
 import { MalformedRequestError } from "#action/request/MalformedRequestError.js";
 import { Read } from "#action/request/Read.js";
+import { Write } from "#action/request/Write.js";
 import { InvokeResult } from "#action/response/InvokeResult.js";
 import { ResultStatus } from "#action/response/ResultStatus.js";
 import { MessageType } from "#interaction/InteractionMessenger.js";
@@ -26,6 +27,7 @@ import {
 } from "@matter/general";
 import { Specification } from "@matter/model";
 import {
+    AttributeId,
     ClusterId,
     CommandId,
     EndpointNumber,
@@ -38,6 +40,10 @@ import {
     TlvInvokeRequest,
     TlvInvokeResponse,
     TlvStatusResponse,
+    TlvUInt8,
+    TlvWriteRequest,
+    TlvWriteResponse,
+    WriteRequest,
 } from "@matter/types";
 import { OnOff } from "@matter/types/clusters/on-off";
 import { WebRtcTransportProvider } from "@matter/types/clusters/web-rtc-transport-provider";
@@ -244,6 +250,40 @@ class RefLessDeviceExchangeProvider extends ExchangeProvider {
                         suppressResponse: false,
                         invokeResponses: request.invokeRequests.map(({ commandPath }) => ({
                             status: { commandPath, status: { status: Status.Success } },
+                        })),
+                        interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
+                    }),
+                };
+            }
+        });
+    }
+}
+
+/** Emulates a device that answers each Write Request with a success status per path. */
+class WriteDeviceExchangeProvider extends ExchangeProvider {
+    readonly maxPathsPerInvoke = 1;
+    readonly channelType = ChannelType.UDP;
+    readonly peerAddress = undefined;
+
+    constructor(private readonly sentRequests: WriteRequest[]) {
+        super(undefined as unknown as ExchangeManager);
+    }
+
+    maximumPeerResponseTime(): Duration {
+        return Seconds(30);
+    }
+
+    async initiateExchange(): Promise<MessageExchange> {
+        return createDummyMessageExchange(false, false, (messageType, payload) => {
+            if (messageType === MessageType.WriteRequest) {
+                const request = TlvWriteRequest.decode(payload);
+                this.sentRequests.push(request);
+                return {
+                    messageType: MessageType.WriteResponse,
+                    payload: TlvWriteResponse.encode({
+                        writeResponses: request.writeRequests.map(({ path }) => ({
+                            path,
+                            status: { status: Status.Success },
                         })),
                         interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
                     }),
@@ -801,6 +841,78 @@ describe("ClientInteraction invoke DelayReportData", () => {
 
             expect(sent.delayReportData).undefined;
         });
+    });
+});
+
+describe("ClientInteraction request flags", () => {
+    before(MockTime.enable);
+
+    const offOnEndpoint1 = () =>
+        Invoke.ConcreteCommandRequest({ endpoint: EndpointNumber(1), cluster: OnOff, command: "off" });
+
+    async function sentInvoke(request: ReturnType<typeof Invoke>) {
+        const sentRequests = new Array<InvokeRequest>();
+        const client = new ClientInteraction({
+            environment: Environment.default,
+            exchangeProvider: new RefLessDeviceExchangeProvider(10, sentRequests),
+        });
+
+        try {
+            await MockTime.resolve(
+                (async () => {
+                    for await (const _chunk of client.invoke(request)) {
+                        // Only the request on the wire matters
+                    }
+                })(),
+            );
+        } finally {
+            await client.close();
+        }
+
+        expect(sentRequests.length).equals(1);
+        return sentRequests[0];
+    }
+
+    it("leaves false flags out when forced", async () => {
+        const sent = await sentInvoke(Invoke({ commands: [offOnEndpoint1()], omitFalseFlags: true }));
+
+        expect(sent.suppressResponse).undefined;
+        expect(sent.timedRequest).undefined;
+    });
+
+    it("sends false flags without the option", async () => {
+        const sent = await sentInvoke(Invoke({ commands: [offOnEndpoint1()] }));
+
+        expect(sent.suppressResponse).equals(false);
+        expect(sent.timedRequest).equals(false);
+    });
+
+    it("leaves false flags out of a write when forced", async () => {
+        const sentRequests = new Array<WriteRequest>();
+        const client = new ClientInteraction({
+            environment: Environment.default,
+            exchangeProvider: new WriteDeviceExchangeProvider(sentRequests),
+        });
+        const write = Write({
+            writes: [
+                {
+                    path: { endpointId: EndpointNumber(1), clusterId: ClusterId(6), attributeId: AttributeId(0x4003) },
+                    data: TlvUInt8.encodeTlv(1),
+                },
+            ],
+            suppressResponse: false,
+            omitFalseFlags: true,
+        });
+
+        try {
+            await MockTime.resolve(client.write(write));
+        } finally {
+            await client.close();
+        }
+
+        expect(sentRequests.length).equals(1);
+        expect(sentRequests[0].suppressResponse).undefined;
+        expect(sentRequests[0].timedRequest).undefined;
     });
 });
 

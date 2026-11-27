@@ -11,4 +11,5 @@ export * from "./ClientRequest.js";
 export * from "./ClientWrite.js";
 export * from "./InputChunk.js";
 export * from "./ReadScope.js";
+export * from "./RequestFlagsOptions.js";
 export * from "./subscription/index.js";
