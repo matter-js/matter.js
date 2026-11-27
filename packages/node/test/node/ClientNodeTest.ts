@@ -5236,6 +5236,11 @@ const PEER1_STATE = {
         acceptedCommandList: [],
         generatedCommandList: [],
     },
+    desiredState: {
+        items: {},
+        capacities: {},
+        enforcement: {},
+    },
 };
 
 const EP1_STATE = {

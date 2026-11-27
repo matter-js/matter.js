@@ -8,6 +8,7 @@
         "packages/types",
         "packages/protocol",
         "packages/node",
+        "packages/node-manager",
         "packages/matter.js",
         "packages/nodejs",
         "packages/nodejs-ble",
