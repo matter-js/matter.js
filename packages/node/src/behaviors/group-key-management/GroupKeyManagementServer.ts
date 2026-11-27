@@ -6,12 +6,13 @@
 
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { NodeLifecycle } from "#node/NodeLifecycle.js";
-import { deepCopy, ImplementationError, Logger } from "@matter/general";
+import { deepCopy, Immutable, ImplementationError, isDeepEqual, Logger, Observable } from "@matter/general";
 import { FieldElement } from "@matter/model";
 import {
     assertRemoteActor,
     Fabric,
     FabricManager,
+    GroupMulticastPolicy,
     hasRemoteActor,
     IPK_DEFAULT_EPOCH_START_TIME,
 } from "@matter/protocol";
@@ -61,6 +62,106 @@ const schema = GroupKeyManagementBase.schema.extend(
     ),
 );
 
+/** Role of the transaction participant that syncs the {@link FabricGroups} after the commit. */
+const fabricGroupsSyncRole = {};
+
+/**
+ * Bring the key sets, the group key id map, the endpoint map and, given {@link multicastPolicies}, the multicast address
+ * policies in the {@link FabricGroups} of every fabric in line with the entries of the fabric in {@link state}.
+ *
+ * Removes only entries that an earlier sync installed, as recorded in {@link synced}, so entries other code writes to
+ * the {@link FabricGroups} directly, such as those of a controller fabric, stay.  Within one sync, additions come before
+ * the maps that refer to them and removals after, so a group never maps to a key set the fabric does not hold.
+ * Unchanged key sets keep their derived keys and their message reception state.
+ */
+async function syncFabricGroups(
+    fabrics: FabricManager,
+    { groupKeySets, groupKeyMap, groupTable }: Immutable<GroupKeyManagementServer.SyncSources>,
+    synced: Map<FabricIndex, GroupKeyManagementServer.SyncedEntries>,
+    multicastPolicies?: GroupKeyManagementServer.MulticastPolicies,
+) {
+    // A FabricIndex can be reused by a later fabric, whose FabricGroups the entries of the removed one do not describe
+    for (const fabricIndex of [...synced.keys()]) {
+        if (!fabrics.has(fabricIndex)) {
+            synced.delete(fabricIndex);
+        }
+    }
+
+    // Read every source before the first await, so one sync applies one consistent committed state
+    const state = deepCopy({ groupKeySets, groupKeyMap, groupTable });
+    const policiesOfFabric = new Map(
+        [...fabrics].map(({ fabricIndex }) => [fabricIndex, multicastPolicies?.(fabricIndex)]),
+    );
+
+    for (const { fabricIndex, groups } of fabrics) {
+        const previous = synced.get(fabricIndex);
+
+        const policies = policiesOfFabric.get(fabricIndex);
+        for (const [groupId, policy] of policies ?? []) {
+            groups.setGroupMulticastPolicy(groupId, policy);
+        }
+
+        const keySets = state.groupKeySets.filter(entry => entry.fabricIndex === fabricIndex);
+        for (const { fabricIndex: _fabricIndex, ...keySet } of keySets) {
+            if (!isDeepEqual(groups.keySets.asGroupKeySet(keySet.groupKeySetId), keySet, true)) {
+                await groups.setFromGroupKeySet(deepCopy(keySet));
+            }
+        }
+
+        const keyMap = new Map(
+            state.groupKeyMap
+                .filter(entry => entry.fabricIndex === fabricIndex)
+                .map(({ groupId, groupKeySetId }) => [groupId, groupKeySetId]),
+        );
+        const { groupKeyIdMap } = groups;
+        for (const [groupId, keySetId] of keyMap) {
+            groupKeyIdMap.set(groupId, keySetId);
+        }
+        for (const groupId of previous?.keyMapGroups ?? []) {
+            if (!keyMap.has(groupId)) {
+                groupKeyIdMap.delete(groupId);
+            }
+        }
+
+        const { endpoints } = groups;
+        const groupTable = state.groupTable.filter(entry => entry.fabricIndex === fabricIndex);
+        const tableGroups = new Set(groupTable.map(({ groupId }) => groupId));
+        for (const groupId of previous?.tableGroups ?? []) {
+            if (!tableGroups.has(groupId)) {
+                endpoints.delete(groupId);
+            }
+        }
+        for (const { groupId, endpoints: groupEndpoints } of groupTable) {
+            if (!isDeepEqual(endpoints.get(groupId), groupEndpoints)) {
+                endpoints.set(groupId, [...groupEndpoints]);
+            }
+        }
+
+        const keySetIds = new Set(keySets.map(({ groupKeySetId }) => groupKeySetId));
+        for (const keySetId of previous?.keySetIds ?? []) {
+            if (!keySetIds.has(keySetId)) {
+                groups.removeGroupKeySet(keySetId);
+            }
+        }
+
+        const policyGroups = policies === undefined ? previous?.policyGroups : new Set(policies.keys());
+        if (policies !== undefined) {
+            for (const groupId of previous?.policyGroups ?? []) {
+                if (!policies.has(groupId)) {
+                    groups.removeGroupMulticastPolicy(groupId);
+                }
+            }
+        }
+
+        synced.set(fabricIndex, {
+            keySetIds,
+            keyMapGroups: new Set(keyMap.keys()),
+            tableGroups,
+            policyGroups: policyGroups ?? new Set(),
+        });
+    }
+}
+
 function withoutMulticastPolicy<T extends GroupKeyManagement.GroupKeySet>({
     groupKeyMulticastPolicy: _policy,
     ...keySet
@@ -72,7 +173,9 @@ function withoutMulticastPolicy<T extends GroupKeyManagement.GroupKeySet>({
  * This is the default server implementation of {@link GroupKeyManagementBehavior}.
  */
 export class GroupKeyManagementServer extends GroupKeyManagementBase {
+    declare internal: GroupKeyManagementServer.Internal;
     declare readonly state: GroupKeyManagementServer.State;
+    declare readonly events: GroupKeyManagementServer.Events;
     static override readonly schema = schema;
 
     override initialize() {
@@ -96,8 +199,9 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
         this.reactTo(this.events.groupKeyMap$Changing, this.#validateGroupKeyMap);
         this.reactTo(this.events.groupTable$Changing, this.#validateGroupTable);
 
-        // Update the group key map when the group key sets change
-        this.reactTo(this.events.groupKeyMap$Changed, this.#updateGroupKeyMap);
+        this.reactTo(this.events.groupKeySets$Changing, this.syncFabricGroupsAfterCommit);
+        this.reactTo(this.events.groupKeyMap$Changing, this.syncFabricGroupsAfterCommit);
+        this.reactTo(this.events.groupTable$Changing, this.syncFabricGroupsAfterCommit);
 
         const lifecycle = this.endpoint.lifecycle as NodeLifecycle;
         this.reactTo(lifecycle.online, this.#online);
@@ -122,49 +226,70 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
 
         const fabrics = this.env.get(FabricManager);
 
-        // When we have group key sets, we need to ensure that they are initialized on the Fabric group manager
-        if (this.state.groupKeySets.length) {
-            const groupKeysForFabric = new Map<FabricIndex, GroupKeyManagement.GroupKeySet[]>();
-            const groupKeySets = deepCopy(this.state.groupKeySets);
-            for (let i = 0; i < groupKeySets.length; i++) {
-                const groupKeySet = groupKeySets[i];
-                const fabricIndex = groupKeySet.fabricIndex;
-                const keys = groupKeysForFabric.get(fabricIndex) ?? [];
-                if (keys.length === 0 && !fabrics.has(fabricIndex)) {
-                    // Should normally not happen, but we saw such crashes without details, so handle it gracefully
-                    logger.warn(
-                        `Stored GroupKeySets for FabricIndex ${fabricIndex}, but no such fabric exists anymore. Cleaning up stale entries.`,
-                    );
-                    groupKeySets.splice(i, 1);
-                    i--;
-                    continue;
-                }
-                keys.push(groupKeySet);
-                groupKeysForFabric.set(fabricIndex, keys);
-            }
-            if (groupKeySets.length !== this.state.groupKeySets.length) {
-                // Some entries were removed, so update the persisted state
-                this.state.groupKeySets = groupKeySets;
-            }
+        const groupKeySets = this.state.groupKeySets.filter(({ fabricIndex }) => fabrics.has(fabricIndex));
+        if (groupKeySets.length !== this.state.groupKeySets.length) {
+            // Should normally not happen, but we saw such crashes without details, so handle it gracefully
+            const staleFabrics = new Set(
+                this.state.groupKeySets.map(({ fabricIndex }) => fabricIndex).filter(index => !fabrics.has(index)),
+            );
+            logger.warn(
+                `Stored GroupKeySets for FabricIndex ${[...staleFabrics].join(", ")}, but no such fabric exists anymore. Cleaning up stale entries.`,
+            );
+            this.state.groupKeySets = deepCopy(groupKeySets);
+        }
 
-            for (const [fabricIndex, keys] of groupKeysForFabric.entries()) {
-                const fabric = fabrics.for(fabricIndex);
-                for (const groupKeySet of keys) {
-                    await fabric.groups.setFromGroupKeySet(groupKeySet);
+        const { state, internal } = this;
+        const sync = () => syncFabricGroups(fabrics, state, internal.synced, internal.multicastPolicies);
+        await (internal.fabricGroupsSync = internal.fabricGroupsSync.then(sync, sync));
+    }
+
+    /**
+     * Bring the {@link FabricGroups} of every fabric in line with the committed state once the current transaction
+     * concludes, including the multicast policies of {@link setMulticastPolicies}.  A transaction that rolls back
+     * leaves them unchanged.  The sync completes before the commit of the transaction resolves, so before the response
+     * to the command or write that changed the state.
+     *
+     * Every change to GroupKeySets, GroupKeyMap or GroupTable calls it before the commit.  Call it yourself only from a
+     * transaction that changes another source, such as the multicast policies of {@link setMulticastPolicies}; a call
+     * from a post-commit reactor is too late for this commit.  Calling it more than once in a transaction has no further
+     * effect.
+     */
+    syncFabricGroupsAfterCommit() {
+        const { transaction } = this.context;
+        if (transaction.getParticipant(fabricGroupsSyncRole) !== undefined) {
+            return;
+        }
+
+        const { endpoint, internal } = this;
+        const fabrics = this.env.get(FabricManager);
+        const sync = () =>
+            syncFabricGroups(
+                fabrics,
+                endpoint.stateOf(GroupKeyManagementServer),
+                internal.synced,
+                internal.multicastPolicies,
+            );
+        transaction.addParticipants({
+            role: fabricGroupsSyncRole,
+            toString: () => `${endpoint}.groupKeyManagement.fabricGroups`,
+
+            // One sync runs at a time and reads the state when it starts, so it never installs a state that an
+            // overlapping commit replaced
+            conclusion: outcome => {
+                if (outcome !== "rolled back") {
+                    return (internal.fabricGroupsSync = internal.fabricGroupsSync.then(sync, sync));
                 }
-            }
-        }
-        if (this.state.groupKeyMap.length) {
-            this.#updateGroupKeyMap(this.state.groupKeyMap);
-        }
-        if (this.state.groupTable.length) {
-            // Restore the runtime endpoint map, which group command dispatch and the UDP multicast memberships use
-            for (const { fabricIndex, groupId, endpoints } of this.state.groupTable) {
-                if (fabrics.has(fabricIndex)) {
-                    fabrics.for(fabricIndex).groups.endpoints.set(groupId, [...endpoints]);
-                }
-            }
-        }
+            },
+        });
+    }
+
+    /**
+     * Make the multicast address policies of {@link policies} part of the {@link FabricGroups} sync.  A group without a
+     * policy then uses its per-group address.  Used by GroupcastServer, which derives the policies from its committed
+     * membership.
+     */
+    setMulticastPolicies(policies: GroupKeyManagementServer.MulticastPolicies) {
+        this.internal.multicastPolicies = policies;
     }
 
     #validateGroupKeyMap(groupKeyMap: GroupKeyManagement.GroupKeyMap[]) {
@@ -254,53 +379,8 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
         }
     }
 
-    #updateGroupKeyMap(
-        groupKeyMap: GroupKeyManagement.GroupKeyMap[],
-        _oldMap?: GroupKeyManagement.GroupKeyMap[],
-        context?: ActionContext,
-    ) {
-        if (context !== undefined && hasRemoteActor(context)) {
-            const fabric = context.session?.associatedFabric;
-            const fabricIndex = fabric?.fabricIndex;
-
-            // Online context, so we can just update the relevant fabric
-            if (fabric !== undefined && fabricIndex !== undefined) {
-                fabric.groups.groupKeyIdMap = new Map<GroupId, number>(
-                    groupKeyMap
-                        .filter(({ fabricIndex: entryIndex }) => entryIndex === fabricIndex)
-                        .map(({ groupId, groupKeySetId }) => [groupId, groupKeySetId]),
-                );
-                return;
-            }
-        }
-
-        const fabrics = this.env.get(FabricManager);
-        const fabricMaps = new Map<FabricIndex, Map<GroupId, number>>();
-        for (const entry of groupKeyMap) {
-            const { fabricIndex, groupId, groupKeySetId } = entry;
-
-            const fabricMap = fabricMaps.get(fabricIndex) ?? new Map<GroupId, number>();
-            fabricMap.set(groupId, groupKeySetId);
-            fabricMaps.set(fabricIndex, fabricMap);
-        }
-        for (const fabric of fabrics) {
-            fabric.groups.groupKeyIdMap = fabricMaps.get(fabric.fabricIndex) ?? new Map<GroupId, number>();
-        }
-    }
-
-    override async keySetWrite({ groupKeySet }: GroupKeyManagement.KeySetWriteRequest) {
+    override keySetWrite({ groupKeySet }: GroupKeyManagement.KeySetWriteRequest) {
         assertRemoteActor(this.context);
-
-        const {
-            groupKeySetId,
-            epochKey0,
-            epochKey1,
-            epochKey2,
-            epochStartTime0,
-            epochStartTime1,
-            epochStartTime2,
-            groupKeySecurityPolicy,
-        } = groupKeySet;
 
         // Unclear if that should be checked here, but it basically only makes sense here
         // An epoch key marked with the maximum start time SHALL be disabled and render the corresponding epoch
@@ -317,6 +397,17 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
             groupKeySet.epochStartTime2 = null;
             groupKeySet.epochKey2 = null;
         }
+
+        const {
+            groupKeySetId,
+            epochKey0,
+            epochKey1,
+            epochKey2,
+            epochStartTime0,
+            epochStartTime1,
+            epochStartTime2,
+            groupKeySecurityPolicy,
+        } = groupKeySet;
 
         if (epochKey0 === null || epochStartTime0 === null) {
             throw new StatusResponseError("EpochKey0 and EpochStartTime0 must be set", Status.InvalidCommand);
@@ -356,8 +447,7 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
             throw new StatusResponseError("GroupKeySecurityPolicy must be TrustFirst", Status.InvalidCommand);
         }
 
-        const fabric = this.context.session.associatedFabric;
-        const fabricIndex = fabric.fabricIndex;
+        const fabricIndex = this.context.session.associatedFabric.fabricIndex;
         const keySet = withoutMulticastPolicy(groupKeySet);
 
         // Replace or add the group key set to the internal persisted state
@@ -380,9 +470,6 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
             }
             this.state.groupKeySets.push({ ...keySet, fabricIndex });
         }
-
-        // Update the Fabric group manager to kick off the internal processes
-        await fabric.groups.setFromGroupKeySet(keySet);
     }
 
     override keySetRead({
@@ -418,8 +505,7 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
 
         assertRemoteActor(this.context);
 
-        const fabric = this.context.session.associatedFabric;
-        const fabricIndex = fabric.fabricIndex;
+        const fabricIndex = this.context.session.associatedFabric.fabricIndex;
 
         // Remove the group key set from the internal persisted state
         const existingIndex = this.state.groupKeySets.findIndex(
@@ -436,9 +522,6 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
         this.state.groupKeyMap = this.state.groupKeyMap.filter(
             entry => entry.fabricIndex !== fabricIndex || entry.groupKeySetId !== groupKeySetId,
         );
-
-        // Sync to Fabric group manager to remove too
-        fabric.groups.removeGroupKeySet(groupKeySetId);
     }
 
     override keySetReadAllIndices(): GroupKeyManagement.KeySetReadAllIndicesResponse {
@@ -475,7 +558,6 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
             // If the group already exists, add the endpoint
             if (!this.state.groupTable[existingGroupIndex].endpoints.includes(endpointId)) {
                 this.state.groupTable[existingGroupIndex].endpoints.push(endpointId);
-                fabric.groups.endpoints.set(groupId, this.state.groupTable[existingGroupIndex].endpoints);
             }
             this.state.groupTable[existingGroupIndex].groupName = groupName;
         } else {
@@ -496,7 +578,6 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
                 groupName,
                 fabricIndex,
             });
-            fabric.groups.endpoints.set(groupId, [endpointId]);
         }
         logger.info(
             `Added endpoint ${endpointId} to group ${groupId} on fabric ${fabricIndex}`,
@@ -522,13 +603,10 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
             const endpointExists = entry.endpoints.includes(endpointId);
             if (endpointExists) {
                 if (entry.endpoints.length === 1 && entry.endpoints[0] === endpointId) {
-                    const groupId = entry.groupId;
                     // If no endpoints left, remove the group entry
                     groupTable.splice(i, 1);
-                    fabric.groups.endpoints.delete(groupId);
                 } else {
                     entry.endpoints = entry.endpoints.filter(id => id !== endpointId);
-                    fabric.groups.endpoints.set(entry.groupId, entry.endpoints);
                 }
                 existing = true;
             }
@@ -560,10 +638,10 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
      * Used by GroupcastServer when JoinGroup or UpdateGroupKey is called with a `key` parameter.
      * The key set uses TrustFirst policy and EpochStartTime0=1 as required by core§11.27.7.1.4.
      *
-     * @returns true on success, throws if the key set already exists or resources are exhausted
+     * The key set becomes usable for group messages when the transaction commits.  Throws a {@link StatusResponseError}
+     * with ResourceExhausted when the fabric holds the maximum number of key sets.
      */
-    createKeySetForGroupcast(fabric: Fabric, keySetId: number, epochKey0: Uint8Array): Promise<void> {
-        const fabricIndex = fabric.fabricIndex;
+    createKeySetForGroupcast(fabricIndex: FabricIndex, keySetId: number, epochKey0: Uint8Array) {
         const keySetsOfFabric = this.state.groupKeySets.filter(({ fabricIndex: fi }) => fi === fabricIndex).length + 1;
         if (keySetsOfFabric >= this.state.maxGroupKeysPerFabric) {
             throw new StatusResponseError(
@@ -583,8 +661,6 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
             fabricIndex,
         };
         this.state.groupKeySets.push(groupKeySet);
-        // Update the fabric group manager so the key is immediately usable
-        return fabric.groups.setFromGroupKeySet(groupKeySet);
     }
 
     setGroupcastAdopted(fabricIndex: FabricIndex, adopted: boolean) {
@@ -602,6 +678,41 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
 }
 
 export namespace GroupKeyManagementServer {
+    export class Events extends GroupKeyManagementBase.Events {
+        groupKeySets$Changing =
+            Observable<
+                [
+                    value: GroupKeyManagementServer.State["groupKeySets"],
+                    oldValue: GroupKeyManagementServer.State["groupKeySets"],
+                    context: ActionContext,
+                ]
+            >();
+    }
+
+    export class Internal {
+        /** Settles when the last started sync of the {@link FabricGroups} with the committed state completes. */
+        fabricGroupsSync: Promise<void> = Promise.resolve();
+
+        multicastPolicies?: MulticastPolicies;
+
+        /** Per fabric, the entries the last sync installed in the {@link FabricGroups}. */
+        synced = new Map<FabricIndex, SyncedEntries>();
+    }
+
+    /** The state the {@link FabricGroups} follow. */
+    export type SyncSources = Pick<State, "groupKeySets" | "groupKeyMap" | "groupTable">;
+
+    /** The entries of one fabric that a sync installed, so the next sync removes only those. */
+    export interface SyncedEntries {
+        keySetIds: Set<number>;
+        keyMapGroups: Set<GroupId>;
+        tableGroups: Set<GroupId>;
+        policyGroups: Set<GroupId>;
+    }
+
+    /** Returns the committed multicast address policy of every group of a fabric that has one. */
+    export type MulticastPolicies = (fabricIndex: FabricIndex) => Map<GroupId, GroupMulticastPolicy>;
+
     export class State extends GroupKeyManagementBase.State {
         /**
          * Extended state to hold and persist the group key sets for this server. This structure contains all

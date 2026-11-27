@@ -5,11 +5,12 @@
  */
 
 import { GroupKeyManagementClient, GroupKeyManagementServer } from "#behaviors/group-key-management";
+import { GroupsServer } from "#behaviors/groups";
 import { ServerNode } from "#node/index.js";
 import { Bytes } from "@matter/general";
-import { causeMessagesOf, MockServerNode, MockSite } from "@matter/node/testing";
-import { FabricManager } from "@matter/protocol";
-import { FabricIndex, GroupId } from "@matter/types";
+import { causeMessagesOf, MockExchange, MockServerNode, MockSite } from "@matter/node/testing";
+import { FabricManager, ProtocolMocks } from "@matter/protocol";
+import { EndpointNumber, FabricIndex, GroupId, NodeId, Status } from "@matter/types";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
 
 describe("GroupKeyManagementServer", () => {
@@ -264,6 +265,187 @@ describe("GroupKeyManagementServer", () => {
             [GroupId(0x0101), 1],
         ]);
         expect(fabrics.for(fabric2.fabricIndex).groups.groupKeyIdMap.size).equals(0);
+    });
+
+    describe("FabricGroups sync", () => {
+        const keySet = {
+            groupKeySetId: 1,
+            groupKeySecurityPolicy: GroupKeyManagement.GroupKeySecurityPolicy.TrustFirst,
+            epochKey0: Bytes.fromHex("d0d1d2d3d4d5d6d7d8d9dadbdcdddedf"),
+            epochStartTime0: 18446744073709551612n,
+            epochKey1: null,
+            epochStartTime1: null,
+            epochKey2: null,
+            epochStartTime2: null,
+        };
+
+        /** An invalid GroupKeyMap that the validation at commit refuses, which rolls the whole transaction back. */
+        const refusedAtCommit = (fabricIndex: FabricIndex) => [{ fabricIndex, groupId: GroupId(0), groupKeySetId: 1 }];
+
+        /** A node with one fabric and an exchange whose session uses that fabric, as a CASE session does. */
+        async function onlineNode(options?: MockServerNode.Options) {
+            const node = await MockServerNode.createOnline(undefined, options);
+            const { fabricIndex } = await node.addFabric();
+            const fabric = node.env.get(FabricManager).for(fabricIndex);
+            const exchange = new MockExchange(
+                { fabricIndex, nodeId: NodeId(0n) },
+                { session: new ProtocolMocks.NodeSession({ fabric, peerNodeId: NodeId(0n) }) },
+            );
+            return { node, fabricIndex, exchange, groups: fabric.groups };
+        }
+
+        it("leaves the key sets of the fabric unchanged when KeySetWrite fails at commit", async () => {
+            const { node, fabricIndex, exchange, groups } = await onlineNode({ device: undefined });
+            await using _node = node;
+
+            await expect(
+                node.online({ exchange, command: true }, async agent => {
+                    const gkm = agent.get(GroupKeyManagementServer);
+                    await gkm.keySetWrite({ groupKeySet: keySet });
+                    gkm.state.groupKeyMap = refusedAtCommit(fabricIndex);
+                }),
+            ).rejectedWith(/Only operational GroupIds/);
+
+            expect(node.stateOf(GroupKeyManagementServer).groupKeySets).deep.equals([]);
+            expect(groups.keySets.forId(1)).undefined;
+        });
+
+        it("keeps the key set of the fabric when KeySetRemove fails at commit", async () => {
+            const { node, fabricIndex, exchange, groups } = await onlineNode({ device: undefined });
+            await using _node = node;
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupKeyManagementServer).keySetWrite({ groupKeySet: keySet }),
+            );
+            expect(groups.keySets.forId(1)).not.undefined;
+
+            await expect(
+                node.online({ exchange, command: true }, async agent => {
+                    const gkm = agent.get(GroupKeyManagementServer);
+                    await gkm.keySetRemove({ groupKeySetId: 1 });
+                    gkm.state.groupKeyMap = refusedAtCommit(fabricIndex);
+                }),
+            ).rejectedWith(/Only operational GroupIds/);
+
+            expect(node.stateOf(GroupKeyManagementServer).groupKeySets).length(1);
+            expect(groups.keySets.forId(1)).not.undefined;
+        });
+
+        it("keeps an unchanged key set installed when a later commit syncs the fabric", async () => {
+            const { node, fabricIndex, exchange, groups } = await onlineNode({ device: undefined });
+            await using _node = node;
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupKeyManagementServer).keySetWrite({ groupKeySet: keySet }),
+            );
+            const removed = new Array<number>();
+            groups.keySets.deleted.on(({ groupKeySetId }) => void removed.push(groupKeySetId));
+
+            await node.act(agent => {
+                agent.get(GroupKeyManagementServer).state.groupKeyMap = [
+                    { fabricIndex, groupId: GroupId(0x0101), groupKeySetId: 1 },
+                ];
+            });
+
+            expect(groups.groupKeyIdMap.get(GroupId(0x0101))).equals(1);
+            expect(removed).deep.equals([]);
+        });
+
+        it("moves a group to its new key set before removing the old key set", async () => {
+            const { node, fabricIndex, exchange, groups } = await onlineNode({ device: undefined });
+            await using _node = node;
+            const groupId = GroupId(0x0101);
+            await node.online({ exchange, command: true }, async agent => {
+                const gkm = agent.get(GroupKeyManagementServer);
+                await gkm.keySetWrite({ groupKeySet: keySet });
+                gkm.state.groupKeyMap = [{ fabricIndex, groupId, groupKeySetId: 1 }];
+            });
+            const mappedOnRemoval = new Array<number | undefined>();
+            groups.keySets.deleted.on(() => void mappedOnRemoval.push(groups.groupKeyIdMap.get(groupId)));
+
+            await node.online({ exchange, command: true }, async agent => {
+                const gkm = agent.get(GroupKeyManagementServer);
+                await gkm.keySetWrite({ groupKeySet: { ...keySet, groupKeySetId: 2 } });
+                gkm.state.groupKeyMap = [{ fabricIndex, groupId, groupKeySetId: 2 }];
+                await gkm.keySetRemove({ groupKeySetId: 1 });
+            });
+
+            expect(groups.keySets.forId(1)).undefined;
+            expect(mappedOnRemoval).deep.equals([2]);
+        });
+
+        it("adds no endpoint map entry when a Groups AddGroup fails at commit", async () => {
+            // The default device has the Groups cluster on endpoint 1
+            const { node, fabricIndex, exchange, groups } = await onlineNode();
+            await using _node = node;
+            const groupId = GroupId(0x0101);
+            await node.act(agent => {
+                agent.get(GroupKeyManagementServer).state.groupKeyMap = [{ fabricIndex, groupId, groupKeySetId: 1 }];
+            });
+            expect(groups.groupKeyIdMap.has(groupId)).true;
+
+            await expect(
+                node.online({ exchange, command: true }, async agent => {
+                    const light = node.parts.get(1)!.agentFor(agent.context);
+                    const { status } = await light.get(GroupsServer).addGroup({ groupId, groupName: "" });
+                    expect(status).equals(Status.Success);
+                    agent.get(GroupKeyManagementServer).state.groupKeyMap = refusedAtCommit(fabricIndex);
+                }),
+            ).rejectedWith(/Only operational GroupIds/);
+
+            expect(node.stateOf(GroupKeyManagementServer).groupTable).deep.equals([]);
+            expect(groups.endpoints.has(groupId)).false;
+        });
+
+        it("keeps entries that other code wrote to the fabric when a commit syncs it", async () => {
+            const { node, exchange, groups } = await onlineNode({ device: undefined });
+            await using _node = node;
+            const foreignGroup = GroupId(0x0301);
+            await groups.setFromGroupKeySet({ ...keySet, groupKeySetId: 9 });
+            groups.groupKeyIdMap.set(foreignGroup, 9);
+            groups.endpoints.set(foreignGroup, [EndpointNumber(1)]);
+
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupKeyManagementServer).keySetWrite({ groupKeySet: keySet }),
+            );
+
+            expect(groups.keySets.forId(1)).not.undefined;
+            expect(groups.keySets.forId(9)).not.undefined;
+            expect(groups.groupKeyIdMap.get(foreignGroup)).equals(9);
+            expect(groups.endpoints.get(foreignGroup)).deep.equals([EndpointNumber(1)]);
+        });
+
+        it("installs a key set that a local state write adds", async () => {
+            const { node, fabricIndex, groups } = await onlineNode({ device: undefined });
+            await using _node = node;
+
+            await node.setStateOf(GroupKeyManagementServer, { groupKeySets: [{ ...keySet, fabricIndex }] });
+
+            expect(groups.keySets.forId(1)).not.undefined;
+        });
+
+        it("refuses a key set whose first epoch key is disabled", async () => {
+            const { node, exchange, groups } = await onlineNode({ device: undefined });
+            await using _node = node;
+
+            await expect(
+                node.online({ exchange, command: true }, async agent =>
+                    agent
+                        .get(GroupKeyManagementServer)
+                        .keySetWrite({ groupKeySet: { ...keySet, epochStartTime0: 0xffffffffffffffffn } }),
+                ),
+            ).rejectedWith(/EpochKey0 and EpochStartTime0 must be set/);
+
+            expect(node.stateOf(GroupKeyManagementServer).groupKeySets).deep.equals([]);
+            expect(groups.keySets.forId(1)).undefined;
+        });
+
+        it("drops stored key sets of a fabric that no longer exists when going online", async () => {
+            await using node = await MockServerNode.createOnline(undefined, {
+                device: undefined,
+                groupKeyManagement: { groupKeySets: [{ ...keySet, fabricIndex: FabricIndex(7) }] },
+            });
+
+            expect(node.stateOf(GroupKeyManagementServer).groupKeySets).deep.equals([]);
+        });
     });
 
     it("refuses group id 0 in GroupKeyMap", async () => {

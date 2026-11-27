@@ -2378,7 +2378,7 @@ describe("GroupcastServer", () => {
                     mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
                 }),
             );
-            // Mirrors the real Groups.RemoveAllGroups path: removeEndpoint keeps fabric.groups.endpoints in sync.
+            // Mirrors the real Groups.RemoveAllGroups path
             await node.online({ exchange, command: true }, agent =>
                 agent.get(GroupKeyManagementServer).removeEndpoint(fabric, EndpointNumber(1), GroupId(0x0204)),
             );
@@ -2531,6 +2531,101 @@ describe("GroupcastServer", () => {
             const [fabric] = [...device.env.get(FabricManager)];
             expect(admins.length).least(1);
             expect(admins.every(a => a === fabric.rootNodeId)).true;
+        });
+    });
+
+    describe("runtime group state after commit", () => {
+        it("leaves the multicast address of a group only once when the same commit also changes a key set", async () => {
+            await using node = await MockServerNode.createOnline(IanaOnlyRootEndpoint, { device: undefined });
+            const fabric = await node.addFabric();
+            const exchange = fabricExchange(fabric.fabricIndex);
+            const groupId = GroupId(0x0001);
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId,
+                    endpoints: [EndpointNumber(1)],
+                    keySetId: 1,
+                    key: TEST_KEY,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+            await MockTime.yield3();
+            const { network, changes } = recordMembershipChanges(node);
+            expect(network.isMemberOf(IANA_GROUPCAST_MULTICAST_ADDRESS)).equal(true);
+
+            // The key set derivation suspends the sync, so the policy must still apply while the group is in the
+            // endpoint map
+            await node.online({ exchange, command: true }, async agent => {
+                agent.get(GroupcastServer).leaveGroup({ groupId });
+                await agent.get(GroupKeyManagementServer).keySetWrite({
+                    groupKeySet: {
+                        groupKeySetId: 2,
+                        groupKeySecurityPolicy: 0,
+                        epochKey0: TEST_KEY,
+                        epochStartTime0: MATTER_EPOCH_OFFSET_US + 1n,
+                        epochKey1: null,
+                        epochStartTime1: null,
+                        epochKey2: null,
+                        epochStartTime2: null,
+                    },
+                });
+            });
+            await MockTime.yield3();
+
+            expect(changes).deep.equals([`leave ${IANA_GROUPCAST_MULTICAST_ADDRESS}`]);
+        });
+    });
+
+    describe("failed commit", () => {
+        it("leaves no runtime group state when JoinGroup fails at commit", async () => {
+            await using node = await createGroupcastNode();
+            const fabric = await node.addFabric();
+            const fi = fabric.fabricIndex;
+            const groupId = GroupId(0x0200);
+            const keySetId = 7;
+
+            // GroupKeyMap entries without a groupcast join do not count towards Membership, so JoinGroup passes its own
+            // capacity checks and only the GroupKeyMap validation at commit refuses the new entry
+            const { maxGroupsPerFabric } = node.stateOf(GroupKeyManagementServer);
+            await node.act(agent => {
+                agent.get(GroupKeyManagementServer).state.groupKeyMap = Array.from(
+                    { length: maxGroupsPerFabric },
+                    (_, i) => ({ fabricIndex: fi, groupId: GroupId(0x0100 + i), groupKeySetId: 1 }),
+                );
+            });
+            await MockTime.yield3();
+
+            const auxEvents = new Array<FabricIndex>();
+            node.eventsOf(AccessControlServer).auxiliaryAccessUpdated?.on(({ fabricIndex }) => {
+                auxEvents.push(fabricIndex);
+            });
+
+            await expect(
+                node.online({ exchange: fabricExchange(fi), command: true }, agent =>
+                    agent.get(GroupcastServer).joinGroup({
+                        groupId,
+                        endpoints: [EndpointNumber(1)],
+                        keySetId,
+                        key: TEST_KEY,
+                        useAuxiliaryAcl: true,
+                        mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                    }),
+                ),
+            ).rejectedWith(/Too many groups per fabric/);
+            await MockTime.yield3();
+
+            const { groups } = node.env.get(FabricManager).for(fi);
+            expect(node.stateOf(GroupcastServer).membership.some(m => m.groupId === groupId)).equals(false);
+            expect(groups.keySets.forId(keySetId)).equals(undefined);
+            expect(groups.groupKeyIdMap.has(groupId)).equals(false);
+            expect(groups.endpoints.has(groupId)).equals(false);
+            expect(groups.multicastPolicy.has(groupId)).equals(false);
+            expect(
+                node
+                    .stateOf(AccessControlServer)
+                    .auxiliaryAcl?.some(e => e.subjects?.includes(NodeId(BigInt(groupId)))),
+            ).not.equals(true);
+            expect(auxEvents).deep.equals([]);
         });
     });
 });
