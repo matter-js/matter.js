@@ -2378,7 +2378,7 @@ describe("GroupcastServer", () => {
                     mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
                 }),
             );
-            // Mirrors the real Groups.RemoveAllGroups path: removeEndpoint keeps fabric.groups.endpoints in sync.
+            // Mirrors the real Groups.RemoveAllGroups path
             await node.online({ exchange, command: true }, agent =>
                 agent.get(GroupKeyManagementServer).removeEndpoint(fabric, EndpointNumber(1), GroupId(0x0204)),
             );

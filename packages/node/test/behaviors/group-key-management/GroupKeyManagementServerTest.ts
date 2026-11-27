@@ -10,7 +10,7 @@ import { ServerNode } from "#node/index.js";
 import { Bytes } from "@matter/general";
 import { causeMessagesOf, MockExchange, MockServerNode, MockSite } from "@matter/node/testing";
 import { FabricManager, ProtocolMocks } from "@matter/protocol";
-import { FabricIndex, GroupId, NodeId, Status } from "@matter/types";
+import { EndpointNumber, FabricIndex, GroupId, NodeId, Status } from "@matter/types";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
 
 describe("GroupKeyManagementServer", () => {
@@ -393,6 +393,58 @@ describe("GroupKeyManagementServer", () => {
 
             expect(node.stateOf(GroupKeyManagementServer).groupTable).deep.equals([]);
             expect(groups.endpoints.has(groupId)).false;
+        });
+
+        it("keeps entries that other code wrote to the fabric when a commit syncs it", async () => {
+            const { node, exchange, groups } = await onlineNode({ device: undefined });
+            await using _node = node;
+            const foreignGroup = GroupId(0x0301);
+            await groups.setFromGroupKeySet({ ...keySet, groupKeySetId: 9 });
+            groups.groupKeyIdMap.set(foreignGroup, 9);
+            groups.endpoints.set(foreignGroup, [EndpointNumber(1)]);
+
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupKeyManagementServer).keySetWrite({ groupKeySet: keySet }),
+            );
+
+            expect(groups.keySets.forId(1)).not.undefined;
+            expect(groups.keySets.forId(9)).not.undefined;
+            expect(groups.groupKeyIdMap.get(foreignGroup)).equals(9);
+            expect(groups.endpoints.get(foreignGroup)).deep.equals([EndpointNumber(1)]);
+        });
+
+        it("installs a key set that a local state write adds", async () => {
+            const { node, fabricIndex, groups } = await onlineNode({ device: undefined });
+            await using _node = node;
+
+            await node.setStateOf(GroupKeyManagementServer, { groupKeySets: [{ ...keySet, fabricIndex }] });
+
+            expect(groups.keySets.forId(1)).not.undefined;
+        });
+
+        it("refuses a key set whose first epoch key is disabled", async () => {
+            const { node, exchange, groups } = await onlineNode({ device: undefined });
+            await using _node = node;
+
+            await expect(
+                node.online({ exchange, command: true }, async agent =>
+                    agent
+                        .get(GroupKeyManagementServer)
+                        .keySetWrite({ groupKeySet: { ...keySet, epochStartTime0: 0xffffffffffffffffn } }),
+                ),
+            ).rejectedWith(/EpochKey0 and EpochStartTime0 must be set/);
+
+            expect(node.stateOf(GroupKeyManagementServer).groupKeySets).deep.equals([]);
+            expect(groups.keySets.forId(1)).undefined;
+        });
+
+        it("drops stored key sets of a fabric that no longer exists when going online", async () => {
+            await using node = await MockServerNode.createOnline(undefined, {
+                device: undefined,
+                groupKeyManagement: { groupKeySets: [{ ...keySet, fabricIndex: FabricIndex(7) }] },
+            });
+
+            expect(node.stateOf(GroupKeyManagementServer).groupKeySets).deep.equals([]);
         });
     });
 

@@ -139,26 +139,27 @@ export class GroupcastServer extends GroupcastBase {
 
         const fabrics = this.env.get(FabricManager);
 
-        const { internal } = this;
-        this.agent
-            .get(GroupKeyManagementServer)
-            .setMulticastPolicies(
-                fabricIndex =>
-                    new Map(
-                        internal.committedMembership
-                            .filter(m => m.fabricIndex === fabricIndex)
-                            .map(({ groupId, mcastAddrPolicy }) => [
-                                groupId,
-                                mcastAddrPolicy === Groupcast.MulticastAddrPolicy.PerGroup ? "perGroupId" : "ianaAddr",
-                            ]),
-                    ),
-            );
-        this.reactTo(this.events.membership$Changed, this.#applyCommittedMembership);
+        const { endpoint } = this;
+        this.agent.get(GroupKeyManagementServer).setMulticastPolicies(
+            fabricIndex =>
+                new Map(
+                    endpoint
+                        .stateOf(GroupcastBehavior)
+                        .membership.filter(m => m.fabricIndex === fabricIndex)
+                        .map(({ groupId, mcastAddrPolicy }) => [
+                            groupId,
+                            mcastAddrPolicy === Groupcast.MulticastAddrPolicy.PerGroup ? "perGroupId" : "ianaAddr",
+                        ]),
+                ),
+        );
+        this.reactTo(this.events.membership$Changed, this.#emitCommittedAuxAcl);
+
+        // The stored membership is committed; a derive that changes it emits again after its commit
+        this.#emitCommittedAuxAcl(this.state.membership);
 
         // Membership is a derived-overwrite cache: fabric-scoping keeps it persisted, but #deriveMembership rebuilds
         // it from its sources on every input change, so the stored copy is never authoritative and cannot diverge.
         this.#deriveMembership();
-        this.#applyCommittedMembership(this.state.membership);
 
         this.reactTo(fabrics.events.added, this.#handleFabricAdded, { offline: true });
         this.reactTo(fabrics.events.deleted, this.#handleFabricDeleted, { offline: true });
@@ -733,16 +734,14 @@ export class GroupcastServer extends GroupcastBase {
     }
 
     /**
-     * Take over the committed membership as the source of the multicast policies and emit its auxiliary ACL entries.
-     * Reacts after the commit, so a rolled back membership change never reaches the runtime group state or the access
-     * control list.  Going online seeds it with the membership derived from the persisted sources.
+     * Emit the auxiliary ACL entries of a committed membership.  Reacts after the commit, so a rolled back membership
+     * change never reaches the access control list.
      */
-    #applyCommittedMembership(
+    #emitCommittedAuxAcl(
         membership: readonly Groupcast.Membership[],
         _previous?: readonly Groupcast.Membership[],
         context: ActionContext = this.context,
     ) {
-        this.internal.committedMembership = membership;
         this.#emitAuxAcl(membership, this.internal.auxAclActors.get(context.transaction) ?? context);
     }
 
@@ -760,7 +759,7 @@ export class GroupcastServer extends GroupcastBase {
             if (gkm.validateKeySetId(fabricIndex, keySetId)) {
                 throw new StatusResponseError(`KeySet ${keySetId} already exists for fabric`, Status.AlreadyExists);
             }
-            await gkm.createKeySetForGroupcast(this.env.get(FabricManager).for(fabricIndex), keySetId, Bytes.of(key));
+            gkm.createKeySetForGroupcast(fabricIndex, keySetId, Bytes.of(key));
         } else {
             if (!gkm.validateKeySetId(fabricIndex, keySetId)) {
                 throw new StatusResponseError(`KeySet ${keySetId} not found for fabric`, Status.NotFound);
@@ -901,9 +900,6 @@ export namespace GroupcastServer {
          * AuxiliaryAccessUpdated event after that transaction commits names the administering node.
          */
         auxAclActors = new WeakMap<Transaction, ActionContext>();
-
-        /** The membership as of the last commit, from which the multicast policies of {@link FabricGroups} follow. */
-        committedMembership: readonly Groupcast.Membership[] = [];
 
         /** True while a debounced derive is scheduled but has not yet acquired the groupcast.state lock. */
         derivePending = false;
