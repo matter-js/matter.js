@@ -16,6 +16,8 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/node
     - Fix: A group invoke leaves the request object passed in unchanged
+    - Fix: Group keys, group endpoints, multicast policies and Groupcast auxiliary ACL entries follow committed state only
+    - Fix: Removing a fabric no longer waits five seconds when a fabric-scoped attribute was already cleaned up by a reactor
 
 - @matter/protocol
     - Feature: `Invoke()` and `Write()` accept `omitFalseFlags` to leave a false SuppressResponse and TimedRequest out of the request; use it only when all target nodes support Interaction Model revision 14 or later

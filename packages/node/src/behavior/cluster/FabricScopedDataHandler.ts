@@ -9,7 +9,7 @@ import type { Agent } from "#endpoint/Agent.js";
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import type { SupportedElements } from "#endpoint/properties/Behaviors.js";
 import type { ServerNode } from "#node/ServerNode.js";
-import { createPromise, isObject, Logger, MaybePromise, Seconds, withTimeout } from "@matter/general";
+import { isObject, Logger, MaybePromise } from "@matter/general";
 import { Access, ClusterModel, Schema } from "@matter/model";
 import { OccurrenceManager, Val } from "@matter/protocol";
 import type { ClusterType, FabricIndex } from "@matter/types";
@@ -74,7 +74,9 @@ function computeFabricScopedUpdate(
 
 /**
  * Sanitize fabric-scoped attributes for an already-active endpoint via {@link Endpoint.setStateOf}.
- * The changed state is returned in an array of promises and should be awaited to ensure the state is updated.
+ *
+ * Resolves once the change is committed and its change events are emitted.  The update is computed before the write
+ * takes its lock, so a reactor that removed the same entries meanwhile makes the write change nothing.
  */
 async function sanitizeAttributeData(
     endpoint: Endpoint,
@@ -85,25 +87,19 @@ async function sanitizeAttributeData(
 ) {
     const stateUpdate = computeFabricScopedUpdate(endpoint, type, supportedAttributes, allowedIndices);
     if (stateUpdate === undefined) {
-        return [];
+        return;
     }
 
-    const stateUpdatePromises = new Array<Promise<void>>();
     // Best-effort during online fabric removal: a per-cluster failure must not abort the removal already in progress.
     // The startup path (limitEndpointAttributeDataToAllowedFabrics) instead lets failures throw.
-    const { resolver, promise } = createPromise<void>();
-    (endpoint.eventsOf(type) as Behavior.EventsOf<any>).stateChanged?.on(resolver);
     try {
         await endpoint.setStateOf(type, stateUpdate);
-        stateUpdatePromises.push(withTimeout(Seconds(5), promise)); // 5s should be enough for state change
     } catch (error) {
         logger.warn(
             `Could not sanitize fabric-scoped attributes for cluster ${cluster.name} on endpoint ${endpoint.id}`,
             error,
         );
     }
-
-    return stateUpdatePromises;
 }
 
 /**
@@ -113,13 +109,10 @@ async function sanitizeAttributeData(
  */
 export async function limitNodeDataToAllowedFabrics(node: ServerNode, allowedIndices: FabricIndex[]) {
     const fabricRelevantEvents = new Set<string>();
-    const stateUpdatePromises = new Array<Promise<void>>();
     await node.visit(async endpoint => {
         await forBehaviors(endpoint, async (type, cluster, elements) => {
             if (elements.attributes.size) {
-                stateUpdatePromises.push(
-                    ...(await sanitizeAttributeData(endpoint, type, cluster, elements.attributes, allowedIndices)),
-                );
+                await sanitizeAttributeData(endpoint, type, cluster, elements.attributes, allowedIndices);
             }
             if (elements.events.size) {
                 // If we have events also check if they are fabric scoped and collect them
@@ -144,9 +137,6 @@ export async function limitNodeDataToAllowedFabrics(node: ServerNode, allowedInd
             }
         });
     });
-
-    // Wait for all state changed to be executed before processing events
-    await Promise.allSettled(stateUpdatePromises);
 
     // Now we can remove all occurrences of fabric-scoped events when payload is bound to this fabric index
     if (fabricRelevantEvents.size > 0) {

@@ -19,6 +19,7 @@ import {
     Seconds,
     SynchronousTransactionConflictError,
     Timer,
+    Transaction,
 } from "@matter/general";
 import { AccessLevel, DataModelPath, DatatypeElement, FieldElement } from "@matter/model";
 import {
@@ -107,7 +108,8 @@ const schema = GroupcastBase.schema.extend(
  * Key behaviors:
  * - Derives the Membership attribute from its single-owner sources (groupProperties + GKM groupTable/groupKeyMap);
  *   legacy Groups cluster groups appear automatically via their groupTable entries.
- * - Drives {@link FabricGroups} multicast address policy from the derived membership.
+ * - Supplies the multicast address policies of the committed membership to the {@link FabricGroups} sync of
+ *   {@link GroupKeyManagementServer}.
  * - Registers an {@link AccessControlServer.AuxAclObservable} to supply synthetic ACL entries for groups
  *   with `hasAuxiliaryAcl=true`. AccessControlServer calls back to collect entries when needed.
  */
@@ -137,9 +139,26 @@ export class GroupcastServer extends GroupcastBase {
 
         const fabrics = this.env.get(FabricManager);
 
+        const { internal } = this;
+        this.agent
+            .get(GroupKeyManagementServer)
+            .setMulticastPolicies(
+                fabricIndex =>
+                    new Map(
+                        internal.committedMembership
+                            .filter(m => m.fabricIndex === fabricIndex)
+                            .map(({ groupId, mcastAddrPolicy }) => [
+                                groupId,
+                                mcastAddrPolicy === Groupcast.MulticastAddrPolicy.PerGroup ? "perGroupId" : "ianaAddr",
+                            ]),
+                    ),
+            );
+        this.reactTo(this.events.membership$Changed, this.#applyCommittedMembership);
+
         // Membership is a derived-overwrite cache: fabric-scoping keeps it persisted, but #deriveMembership rebuilds
         // it from its sources on every input change, so the stored copy is never authoritative and cannot diverge.
         this.#deriveMembership();
+        this.#applyCommittedMembership(this.state.membership);
 
         this.reactTo(fabrics.events.added, this.#handleFabricAdded, { offline: true });
         this.reactTo(fabrics.events.deleted, this.#handleFabricDeleted, { offline: true });
@@ -244,19 +263,10 @@ export class GroupcastServer extends GroupcastBase {
             throw new StatusResponseError("MaxMcastAddrCount limit reached", Status.ResourceExhausted);
         }
 
-        // Installs key material in the fabric's operational key store, which a failed transaction does not roll back,
-        // so the capacity checks run first
         await this.#applyKeySet(fabricIndex, keySetId, key);
 
         const gkm = this.agent.get(GroupKeyManagementServer);
         const fabric = this.env.get(FabricManager).for(fabricIndex);
-
-        // Set the policy before writing endpoints so the endpoint-driven multicast bind uses the right address up
-        // front; ServerGroupNetworking rebinds on a policy change, so this order only saves a rebind
-        fabric.groups.setGroupMulticastPolicy(
-            groupId,
-            policy === Groupcast.MulticastAddrPolicy.PerGroup ? "perGroupId" : "ianaAddr",
-        );
 
         let keepsSenderOnly = false;
         if (this.features.listener) {
@@ -276,7 +286,7 @@ export class GroupcastServer extends GroupcastBase {
             }
         }
 
-        this.#setGroupKeyMapping(fabric, fabricIndex, groupId, keySetId);
+        this.#setGroupKeyMapping(fabricIndex, groupId, keySetId);
 
         this.#upsertGroupProperties(fabricIndex, groupId, {
             mcastAddrPolicy: policy,
@@ -360,7 +370,7 @@ export class GroupcastServer extends GroupcastBase {
             gkm.removeEndpoint(fabric, ep, groupId);
         }
         if (entryRemoved) {
-            this.#removeGroupKeyMappings(fabric, fabricIndex, new Set([groupId]));
+            this.#removeGroupKeyMapping(fabricIndex, groupId);
             this.#removeGroupProperties(fabricIndex, groupId);
         }
 
@@ -383,7 +393,7 @@ export class GroupcastServer extends GroupcastBase {
 
         await this.#applyKeySet(fabricIndex, keySetId, key);
 
-        this.#setGroupKeyMapping(this.env.get(FabricManager).for(fabricIndex), fabricIndex, groupId, keySetId);
+        this.#setGroupKeyMapping(fabricIndex, groupId, keySetId);
 
         this.#deriveMembership();
     }
@@ -524,7 +534,7 @@ export class GroupcastServer extends GroupcastBase {
         this.#deriveNow();
     }
 
-    /** The fabric add event carries no writer context, so this derive emits its aux ACL without an admin. */
+    /** The fabric add event carries no writer context, so an AuxiliaryAccessUpdated event of this derive names no admin. */
     #handleFabricAdded() {
         this.#deriveNow();
     }
@@ -576,9 +586,12 @@ export class GroupcastServer extends GroupcastBase {
             this.#scheduleDerive();
             return;
         }
-        // State writes use this reactor's own locked transaction; the writer's online context is passed through only so
-        // the emitted AuxiliaryAccessUpdated event names the administering node
-        this.#applyPendingAndDerive(actorContext ?? this.context);
+        // State writes use this reactor's own locked transaction; the writer's online context is recorded only so the
+        // AuxiliaryAccessUpdated event that follows the commit names the administering node
+        if (actorContext !== undefined) {
+            this.internal.auxAclActors.set(this.context.transaction, actorContext);
+        }
+        this.#applyPendingAndDerive();
     }
 
     /**
@@ -601,7 +614,7 @@ export class GroupcastServer extends GroupcastBase {
                 // Cleared only once the lock is held: a trigger arriving during the same cascade is coalesced into this
                 // run, while a genuinely later change reschedules.
                 self.internal.derivePending = false;
-                self.#applyPendingAndDerive(self.context);
+                self.#applyPendingAndDerive();
             });
         } catch (error) {
             // endpoint.act asserts the endpoint is active synchronously, so it can throw during teardown; resetting the
@@ -623,7 +636,7 @@ export class GroupcastServer extends GroupcastBase {
      * groupcast command marked them sender-only (spec kKeepGroupIfEmpty), consuming the mark so a later external
      * removal still deletes them.  A group re-added before this runs is left untouched.
      */
-    #applyPendingAndDerive(context: ActionContext) {
+    #applyPendingAndDerive() {
         const fabricCleanups = this.internal.pendingFabricCleanups;
         const tableRemovals = this.internal.pendingTableRemovals;
 
@@ -665,7 +678,7 @@ export class GroupcastServer extends GroupcastBase {
             }
         }
 
-        this.#deriveMembership(context);
+        this.#deriveMembership();
 
         if (fabricCleanups.size) {
             this.internal.pendingFabricCleanups = new Set<FabricIndex>();
@@ -684,9 +697,8 @@ export class GroupcastServer extends GroupcastBase {
      * present in groupProperties (a groupcast join) or groupTable (legacy/shared endpoints); groupKeyMap alone does
      * not create membership.  Idempotent and writes no GKM state, so the source-change reactors cannot feed back.
      */
-    #deriveMembership(context?: ActionContext) {
+    #deriveMembership() {
         const gkm = this.agent.get(GroupKeyManagementServer);
-        const previousKeys = this.state.membership.map(m => ({ fabricIndex: m.fabricIndex, groupId: m.groupId }));
         const next = new Array<Groupcast.Membership>();
 
         const byKey = new Map<string, { fabricIndex: FabricIndex; groupId: GroupId }>();
@@ -717,35 +729,21 @@ export class GroupcastServer extends GroupcastBase {
 
         this.state.membership = next;
         this.#updateUsedMcastAddrCount();
-        this.#applyPoliciesAndAuxAcl(previousKeys, next, context ?? this.context);
+        gkm.syncFabricGroupsAfterCommit();
     }
 
     /**
-     * Apply the multicast address policy of each derived membership entry to its fabric's FabricGroups, drop the
-     * policy of groups no longer present, and re-emit the auxiliary ACL entries.  Never writes GKM
-     * groupTable/groupKeyMap.
+     * Take over the committed membership as the source of the multicast policies and emit its auxiliary ACL entries.
+     * Reacts after the commit, so a rolled back membership change never reaches the runtime group state or the access
+     * control list.  Going online seeds it with the membership derived from the persisted sources.
      */
-    #applyPoliciesAndAuxAcl(
-        previousKeys: { fabricIndex: FabricIndex; groupId: GroupId }[],
-        next: Groupcast.Membership[],
-        context: ActionContext,
+    #applyCommittedMembership(
+        membership: readonly Groupcast.Membership[],
+        _previous?: readonly Groupcast.Membership[],
+        context: ActionContext = this.context,
     ) {
-        const fabrics = this.env.get(FabricManager);
-        for (const m of next) {
-            if (!fabrics.has(m.fabricIndex)) {
-                continue;
-            }
-            const policy = m.mcastAddrPolicy === Groupcast.MulticastAddrPolicy.PerGroup ? "perGroupId" : "ianaAddr";
-            fabrics.for(m.fabricIndex).groups.setGroupMulticastPolicy(m.groupId, policy);
-        }
-        const present = new Set(next.map(m => `${m.fabricIndex}:${m.groupId}`));
-        for (const { fabricIndex, groupId } of previousKeys) {
-            if (present.has(`${fabricIndex}:${groupId}`) || !fabrics.has(fabricIndex)) {
-                continue;
-            }
-            fabrics.for(fabricIndex).groups.removeGroupMulticastPolicy(groupId);
-        }
-        this.#emitAuxAcl(context);
+        this.internal.committedMembership = membership;
+        this.#emitAuxAcl(membership, this.internal.auxAclActors.get(context.transaction) ?? context);
     }
 
     /**
@@ -770,49 +768,31 @@ export class GroupcastServer extends GroupcastBase {
         }
     }
 
-    /**
-     * Write a group→keySet mapping to the persisted GroupKeyMap attribute (source for the derived KeySetId) and the
-     * operational fabric key-id map (runtime group-message decryption).
-     */
-    #setGroupKeyMapping(fabric: Fabric, fabricIndex: FabricIndex, groupId: GroupId, keySetId: number) {
+    /** Write a group→keySet mapping to the persisted GroupKeyMap attribute, the source for the derived KeySetId. */
+    #setGroupKeyMapping(fabricIndex: FabricIndex, groupId: GroupId, keySetId: number) {
         const gkm = this.agent.get(GroupKeyManagementServer);
         gkm.state.groupKeyMap = [
             ...gkm.state.groupKeyMap.filter(e => !(e.fabricIndex === fabricIndex && e.groupId === groupId)),
             { groupId, groupKeySetId: keySetId, fabricIndex },
         ];
-        this.#syncOperationalKeyMap(fabric, fabricIndex, gkm);
     }
 
-    /** Remove group→keySet mappings for the given groups from the persisted attribute and the operational map. */
-    #removeGroupKeyMappings(fabric: Fabric, fabricIndex: FabricIndex, groupIds: Set<GroupId>) {
+    #removeGroupKeyMapping(fabricIndex: FabricIndex, groupId: GroupId) {
         const gkm = this.agent.get(GroupKeyManagementServer);
         gkm.state.groupKeyMap = gkm.state.groupKeyMap.filter(
-            e => e.fabricIndex !== fabricIndex || !groupIds.has(e.groupId),
-        );
-        this.#syncOperationalKeyMap(fabric, fabricIndex, gkm);
-    }
-
-    /**
-     * Rebuild the fabric's operational key-id map from the persisted GroupKeyMap (the source of truth), so unmapped
-     * groups are excluded.  Done synchronously because GroupKeyManagement's own reactor updates it only on a later
-     * tick, whereas commands and group-message decryption need it immediately.
-     */
-    #syncOperationalKeyMap(fabric: Fabric, fabricIndex: FabricIndex, gkm: GroupKeyManagementServer) {
-        fabric.groups.groupKeyIdMap = new Map<GroupId, number>(
-            gkm.state.groupKeyMap.filter(e => e.fabricIndex === fabricIndex).map(e => [e.groupId, e.groupKeySetId]),
+            e => !(e.fabricIndex === fabricIndex && e.groupId === groupId),
         );
     }
 
     /**
-     * Recompute auxiliary ACL entries and emit them via the observable so AccessControlServer updates.  The context
-     * identifies the administrating actor in the AuxiliaryAccessUpdated event; pass the triggering context when the
-     * recomputation runs in an offline reactor.
+     * Compute the auxiliary ACL entries of {@link membership} and emit them via the observable so AccessControlServer
+     * updates.  The context identifies the administrating actor in the AuxiliaryAccessUpdated event.
      */
-    #emitAuxAcl(context: ActionContext = this.context) {
+    #emitAuxAcl(membership: readonly Groupcast.Membership[], context: ActionContext) {
         if (!this.endpoint.behaviors.has(AccessControlServer)) return;
         // Auxiliary entries grant Operate per listener endpoint (core§11.27.10); sender-only memberships get none
         const entries = new Array<AccessControlTypes.AccessControlEntry>();
-        for (const m of this.state.membership) {
+        for (const m of membership) {
             const { endpoints } = m;
             if (!m.hasAuxiliaryAcl || endpoints === undefined || endpoints.length === 0) {
                 continue;
@@ -915,6 +895,15 @@ export namespace GroupcastServer {
          * (LeaveGroup with the Sender feature = kKeepGroupIfEmpty).
          */
         retainedSenderOnly = new Set<string>();
+
+        /**
+         * The online context of the writer whose change a reactor derives in its own transaction, so the
+         * AuxiliaryAccessUpdated event after that transaction commits names the administering node.
+         */
+        auxAclActors = new WeakMap<Transaction, ActionContext>();
+
+        /** The membership as of the last commit, from which the multicast policies of {@link FabricGroups} follow. */
+        committedMembership: readonly Groupcast.Membership[] = [];
 
         /** True while a debounced derive is scheduled but has not yet acquired the groupcast.state lock. */
         derivePending = false;
